@@ -8,6 +8,13 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "PP Neue Montreal";
+  src: url("./fonts/PPNeueMontreal-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 @plugin "tailwindcss-motion";
 
@@ -17,6 +24,7 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-pp-supply-mono: "PP Supply Mono", monospace;
+  --font-pp-neue-montreal: "PP Neue Montreal", sans-serif;
   --font-jetbrains-mono: var(--font-jetbrains-mono);
   --font-inter: var(--font-inter);
   --color-sidebar-ring: var(--sidebar-ring);
