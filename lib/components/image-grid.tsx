@@ -17,9 +17,10 @@ export function ImageGrid({ items, selectedId, onSelect }: ImageGridProps) {
         <button
           key={item.id}
           onMouseDown={() => onSelect(selectedId === item.id ? null : item.id)}
-          className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none ${
+          className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none motion-opacity-in-0 ${
             selectedId && selectedId !== item.id ? "opacity-50" : ""
           }`}
+          style={{ animationDelay: `${index * 0.02}s` }}
         >
           <div className="relative aspect-4/3 overflow-hidden border-shadow">
             <Image
