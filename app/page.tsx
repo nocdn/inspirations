@@ -32,7 +32,13 @@ export default function Home() {
         </div>
       </div>
       {/* this table will be dynamic, fetched from db */}
-      <Suspense fallback={<div>Loading...</div>}>
+      <Suspense
+        fallback={
+          <div className="text-[14px] text-muted-foreground/70 max-w-[570px] text-left">
+            Loading...
+          </div>
+        }
+      >
         <Table />
       </Suspense>
     </div>

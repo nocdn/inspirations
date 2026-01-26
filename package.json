@@ -10,9 +10,11 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "cambio": "^1.1.5",
     "class-variance-authority": "latest",
     "clsx": "latest",
     "lucide-react": "latest",
+    "motion": "^12.29.0",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",

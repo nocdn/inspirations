@@ -1,54 +1,48 @@
-import Image from "next/image"
 import Link from "next/link"
+
+import AnimationsSymbol from "@/app/symbols/animations"
+import ComponentSymbol from "@/app/symbols/component"
+import Typography from "@/app/symbols/typography"
 
 type Row = {
   id: string
   collection: string
   count: number
   description: string
-  imageUrl: string
+  displayComponent: React.ReactNode
 }
 
-function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
-}
+const rows: Row[] = [
+  {
+    id: "1",
+    collection: "typography",
+    count: 17,
+    description: "Fonts and typography studies.",
+    displayComponent: <Typography />,
+  },
+  {
+    id: "2",
+    collection: "components",
+    count: 8,
+    description: "UI components and patterns.",
+    displayComponent: <ComponentSymbol />,
+  },
+  {
+    id: "3",
+    collection: "animations",
+    count: 25,
+    description: "Ambitious animations and transitions.",
+    displayComponent: <AnimationsSymbol className="text-[#BBB]" />,
+  },
+]
 
-async function fetchRowsSimulated(): Promise<Row[]> {
-  await delay(200) // simulate DB latency
-  return [
-    {
-      id: "1",
-      imageUrl: "https://picsum.photos/200/150?random=1",
-      collection: "Typography",
-      count: 17,
-      description: "Fonts and typography studies.",
-    },
-    {
-      id: "2",
-      imageUrl: "https://picsum.photos/200/150?random=2",
-      collection: "Components",
-      count: 8,
-      description: "UI components and patterns.",
-    },
-    {
-      id: "3",
-      imageUrl: "https://picsum.photos/200/150?random=3",
-      collection: "Animations",
-      count: 25,
-      description: "Ambitious animations and transitions.",
-    },
-  ]
-}
-
-export default async function Table() {
-  const rows = await fetchRowsSimulated()
-
+export default function Table() {
   return (
-    <div className="w-full max-w-[570px]">
+    <div className="w-full max-w-[567px]">
       <table className="w-full text-[14px] border-collapse">
         <thead>
           <tr className="text-left border-b text-muted-foreground/60">
-            <th className="py-2 pl-[5px] pr-4 font-[330] text-[13px]">#</th>
+            <th className="py-2 pl-[3px] pr-4 font-[330] text-[13px]">#</th>
             <th className="py-2 pr-4 font-[330] text-[13px]">Collection</th>
             <th className="py-2 pr-[5px] font-[330] text-right text-[13px]">Count</th>
           </tr>
@@ -56,17 +50,16 @@ export default async function Table() {
 
         <tbody>
           {rows.map((row, index) => (
-            <tr
-              key={row.id}
-              className="border-b motion-opacity-in-0"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <td className="py-2 pl-[5px] pr-4">{index + 1}</td>
+            <tr key={row.id} className="border-b">
+              <td className="py-2 pl-[5px] pr-4 opacity-70">{index + 1}</td>
               <td className="py-2 pr-4 flex gap-5 items-center">
-                <img src={row.imageUrl} alt={row.collection} className="w-[34px] h-[25.5px]" />
-                <div className="flex flex-col gap-0.5">
+                <div className="w-[40px] h-[30px] border-shadow rounded-lg supports-[corner-shape:squircle]:rounded-[30px] supports-[corner-shape:squircle]:[corner-shape:squircle] grid place-content-center">
+                  {row.displayComponent}
+                </div>
+                <div className="flex flex-col gap-0.5 capitalize">
                   <Link
-                    href={`/collections/${row.id}`}
+                    prefetch={true}
+                    href={`/collections/${row.collection}`}
                     className="hover:underline decoration-dotted"
                   >
                     {row.collection}
@@ -76,7 +69,9 @@ export default async function Table() {
                   </div>
                 </div>
               </td>
-              <td className="py-2 pr-[5px] text-right">{row.count}</td>
+              <td className="py-2 pr-[5px] text-right tabular-nums">
+                {row.count.toString().padStart(2, "0")}
+              </td>
             </tr>
           ))}
         </tbody>
