@@ -11,13 +11,18 @@ type CollectionViewProps = {
   items: ImageItem[]
 }
 
-export function CollectionView({ collectionName, items }: CollectionViewProps) {
+export function CollectionView({ collectionName, items: initialItems }: CollectionViewProps) {
+  const [items, setItems] = useState<ImageItem[]>(initialItems)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
+  const handleCommentChange = (id: string, comment: string) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, comment } : item)))
+  }
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !(e.target instanceof HTMLInputElement)) {
         setSelectedId(null)
       }
     }
@@ -31,6 +36,7 @@ export function CollectionView({ collectionName, items }: CollectionViewProps) {
         collectionName={collectionName}
         itemCount={items.length}
         selectedItem={selectedItem}
+        onCommentChange={selectedId ? (comment) => handleCommentChange(selectedId, comment) : undefined}
       />
       <div className="flex-1">
         <ImageGrid items={items} selectedId={selectedId} onSelect={setSelectedId} />

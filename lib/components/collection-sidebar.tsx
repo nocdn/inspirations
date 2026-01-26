@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useState } from "react"
+
 import { AnimatePresence, type Variants, motion } from "motion/react"
 
 import type { ImageItem } from "@/lib/types"
@@ -25,13 +27,40 @@ type CollectionSidebarProps = {
   collectionName: string
   itemCount: number
   selectedItem: ImageItem | null
+  onCommentChange?: (comment: string) => void
 }
 
 export function CollectionSidebar({
   collectionName,
   itemCount,
   selectedItem,
+  onCommentChange,
 }: CollectionSidebarProps) {
+  const [isEditingComment, setIsEditingComment] = useState(false)
+  const [editedComment, setEditedComment] = useState("")
+
+  useEffect(() => {
+    setIsEditingComment(false)
+  }, [selectedItem?.id])
+
+  const handleCommentClick = () => {
+    setEditedComment(selectedItem?.comment || "")
+    setIsEditingComment(true)
+  }
+
+  const handleCommentSave = () => {
+    onCommentChange?.(editedComment)
+    setIsEditingComment(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleCommentSave()
+    } else if (e.key === "Escape") {
+      setIsEditingComment(false)
+    }
+  }
+
   return (
     <div className="w-[280px] shrink-0 sticky top-24 h-fit">
       <AnimatePresence mode="popLayout" custom={1}>
@@ -45,13 +74,42 @@ export function CollectionSidebar({
             exit="exit"
             className="flex flex-col gap-4"
           >
-            <div className="text-[12px] text-muted-foreground/60 font-pp-supply-mono">
+            {/* <div className="text-[12px] text-muted-foreground/60 font-pp-supply-mono">
               Item Details
-            </div>
+            </div> */}
             <div className="flex flex-col gap-2">
               <h2 className="text-[16px] font-medium">{selectedItem.title}</h2>
-              {selectedItem.comment && (
-                <p className="text-[14px] text-muted-foreground/70">{selectedItem.comment}</p>
+              {isEditingComment ? (
+                <input
+                  type="text"
+                  value={editedComment}
+                  onChange={(e) => setEditedComment(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleCommentSave}
+                  autoFocus
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                  className="text-[14px] text-muted-foreground/70 bg-transparent border-none outline-none p-0 m-0 w-full"
+                />
+              ) : selectedItem.comment ? (
+                <button
+                  type="button"
+                  onClick={handleCommentClick}
+                  className="text-[14px] text-muted-foreground/70 cursor-text text-left bg-transparent border-none p-0"
+                  aria-label="Edit comment"
+                >
+                  {selectedItem.comment}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCommentClick}
+                  className="text-[14px] text-muted-foreground/40 cursor-text italic text-left bg-transparent border-none p-0"
+                  aria-label="Add comment"
+                >
+                  Add comment...
+                </button>
               )}
               <p className="text-[12px] text-muted-foreground/50">{selectedItem.dateCreated}</p>
             </div>
@@ -66,13 +124,12 @@ export function CollectionSidebar({
             exit="exit"
             className="flex flex-col gap-4"
           >
-            <div className="text-[12px] text-muted-foreground/60 font-pp-supply-mono">
-              Collection
-            </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-[16px] font-medium capitalize">{collectionName}</h2>
               <p className="text-[14px] text-muted-foreground/70">{itemCount} items</p>
-              <p className="text-[12px] text-muted-foreground/50">Click an item to view details</p>
+              <p className="text-[12px] text-muted-foreground/50 leading-">
+                Click an item to view details
+              </p>
             </div>
           </motion.div>
         )}
