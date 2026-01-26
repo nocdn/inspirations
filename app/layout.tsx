@@ -3,6 +3,8 @@ import { Geist, Geist_Mono, Inter, JetBrains_Mono, Playfair_Display } from "next
 
 import "./globals.css"
 
+const isDevelopment = process.env.NODE_ENV === "development"
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -29,8 +31,8 @@ const playfairDisplay = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: "inspirations",
-  description: "inspirations",
+  title: isDevelopment ? "inspirations (dev)" : "inspirations",
+  description: isDevelopment ? "inspirations (dev)" : "inspirations",
 }
 
 export default function RootLayout({

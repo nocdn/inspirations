@@ -10,9 +10,14 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "@upstash/redis": "^1.36.1",
     "cambio": "^1.1.5",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "color.js": "^1.2.0",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
     "lucide-react": "latest",
     "motion": "^12.29.0",
     "next": "latest",
@@ -29,9 +34,11 @@
     "@types/react-dom": "latest",
     "babel-plugin-react-compiler": "latest",
     "concurrently": "latest",
+    "drizzle-kit": "^0.31.8",
     "prettier": "latest",
     "tailwindcss": "latest",
     "tailwindcss-motion": "latest",
+    "tsx": "^4.21.0",
     "tw-animate-css": "latest",
     "typescript": "latest"
   },
