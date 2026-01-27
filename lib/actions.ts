@@ -2,29 +2,29 @@
 
 import { revalidatePath } from "next/cache"
 
+import { eq } from "drizzle-orm"
+
 import { postsTable } from "@/db/schema"
 import { db } from "@/lib/db"
-import { uploadToR2 } from "@/lib/r2"
+import { getPresignedUploadUrl } from "@/lib/r2"
 import { collectionCacheKey, invalidateCache } from "@/lib/redis"
 
-export async function addImageToCollection(formData: FormData) {
-  const file = formData.get("file") as File | null
-  const collection = formData.get("collection") as string
-  const comment = (formData.get("comment") as string) || ""
-  const url = (formData.get("url") as string) || ""
+export async function getUploadUrl(filename: string, contentType: string) {
+  const { uploadUrl, key, publicUrl } = await getPresignedUploadUrl(filename, contentType)
+  return { uploadUrl, key, publicUrl }
+}
 
-  if (!file || !collection) {
-    throw new Error("File and collection are required")
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const imageUrl = await uploadToR2(buffer, file.name, file.type)
-
+export async function saveImageToCollection(
+  collection: string,
+  imageUrl: string,
+  filename: string,
+  comment: string = ""
+) {
   const [inserted] = await db
     .insert(postsTable)
     .values({
       collection,
-      url: url || file.name,
+      url: filename,
       imageUrl,
       comment,
     })
@@ -87,4 +87,64 @@ export async function addTweetToCollection(
       year: "numeric",
     }),
   }
+}
+
+export async function updateItemComment(itemId: string, collection: string, comment: string) {
+  const [updated] = await db
+    .update(postsTable)
+    .set({
+      comment,
+      updatedAt: new Date(),
+    })
+    .where(eq(postsTable.id, parseInt(itemId, 10)))
+    .returning()
+
+  if (!updated) {
+    throw new Error(`Item ${itemId} not found`)
+  }
+
+  console.log(`[DB UPDATE] Updated comment for item ${itemId}`)
+
+  await invalidateCache(collectionCacheKey(collection))
+  console.log(`[CACHE INVALIDATE] Busted cache for collection: ${collection}`)
+
+  revalidatePath(`/collections/${collection}`)
+  console.log(`[REVALIDATE] Revalidated path: /collections/${collection}`)
+
+  return {
+    id: updated.id.toString(),
+    comment: updated.comment || undefined,
+  }
+}
+
+export async function deleteItem(itemId: string, collection: string) {
+  const startTime = performance.now()
+
+  const [deleted] = await db
+    .delete(postsTable)
+    .where(eq(postsTable.id, parseInt(itemId, 10)))
+    .returning()
+
+  const dbTime = performance.now()
+
+  if (!deleted) {
+    throw new Error(`Item ${itemId} not found`)
+  }
+
+  console.log(
+    `[DB DELETE] Deleted item ${itemId} from collection: ${collection} (${(dbTime - startTime).toFixed(2)}ms)`
+  )
+
+  await invalidateCache(collectionCacheKey(collection))
+  const cacheTime = performance.now()
+  console.log(
+    `[CACHE INVALIDATE] Busted cache for collection: ${collection} (${(cacheTime - dbTime).toFixed(2)}ms)`
+  )
+
+  revalidatePath(`/collections/${collection}`)
+  const totalTime = performance.now()
+  console.log(`[REVALIDATE] Revalidated path: /collections/${collection}`)
+  console.log(`[TOTAL] Delete operation completed in ${(totalTime - startTime).toFixed(2)}ms`)
+
+  return { id: deleted.id.toString() }
 }

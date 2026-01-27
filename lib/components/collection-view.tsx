@@ -1,8 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { addImageToCollection, addTweetToCollection } from "@/lib/actions"
+import {
+  addTweetToCollection,
+  deleteItem,
+  getUploadUrl,
+  saveImageToCollection,
+  updateItemComment,
+} from "@/lib/actions"
 import { CollectionSidebar } from "@/lib/components/collection-sidebar"
 import { ImageGrid } from "@/lib/components/image-grid"
 import { getTweetData } from "@/lib/twitter"
@@ -19,17 +25,32 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const [zoomedId, setZoomedId] = useState<string | null>(null)
   const [autoFocusComment, setAutoFocusComment] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [pendingDeletion, setPendingDeletion] = useState<ImageItem | null>(null)
+  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
   const uploadImageFile = useCallback(
     async (file: File) => {
       setIsUploading(true)
       try {
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("collection", collectionName)
+        const { uploadUrl, publicUrl } = await getUploadUrl(file.name, file.type)
 
-        const newItem = await addImageToCollection(formData)
+        const headers: HeadersInit = {}
+        if (file.type) {
+          headers["Content-Type"] = file.type
+        }
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers,
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed: ${uploadResponse.status}`)
+        }
+
+        const newItem = await saveImageToCollection(collectionName, publicUrl, file.name)
         setItems((prev) => [newItem, ...prev])
         setSelectedId(newItem.id)
         setAutoFocusComment(true)
@@ -42,8 +63,20 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
     [collectionName]
   )
 
-  const handleCommentChange = (id: string, comment: string) => {
+  const handleCommentChange = async (id: string, comment: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, comment } : item)))
+
+    try {
+      await updateItemComment(id, collectionName, comment)
+    } catch (err) {
+      console.error("Failed to save comment:", err)
+      const originalItem = initialItems.find((item) => item.id === id)
+      if (originalItem) {
+        setItems((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, comment: originalItem.comment } : item))
+        )
+      }
+    }
   }
 
   useEffect(() => {
@@ -59,6 +92,35 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [zoomedId])
+
+  // Handle Cmd/Ctrl+Z to undo pending deletion
+  useEffect(() => {
+    const handleUndo = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && pendingDeletion) {
+        e.preventDefault()
+        // Cancel the pending deletion
+        if (deleteTimeoutRef.current) {
+          clearTimeout(deleteTimeoutRef.current)
+          deleteTimeoutRef.current = null
+        }
+        // Restore the item to the list
+        setItems((prev) => [pendingDeletion, ...prev])
+        setPendingDeletion(null)
+        console.log(`[UNDO] Restored item ${pendingDeletion.id}`)
+      }
+    }
+    window.addEventListener("keydown", handleUndo)
+    return () => window.removeEventListener("keydown", handleUndo)
+  }, [pendingDeletion])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current) {
+        clearTimeout(deleteTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -145,13 +207,40 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         onCommentChange={
           selectedId ? (comment) => handleCommentChange(selectedId, comment) : undefined
         }
+        onDelete={
+          selectedId
+            ? () => {
+                const itemToDelete = items.find((item) => item.id === selectedId)
+                if (!itemToDelete) return
+
+                const idToDelete = selectedId
+                setSelectedId(null)
+                setItems((prev) => prev.filter((item) => item.id !== idToDelete))
+                setPendingDeletion(itemToDelete)
+
+                if (deleteTimeoutRef.current) {
+                  clearTimeout(deleteTimeoutRef.current)
+                }
+
+                deleteTimeoutRef.current = setTimeout(async () => {
+                  try {
+                    await deleteItem(idToDelete, collectionName)
+                    setPendingDeletion(null)
+                  } catch (err) {
+                    console.error("Failed to delete item:", err)
+                    setItems((prev) => [itemToDelete, ...prev])
+                    setPendingDeletion(null)
+                  }
+                  deleteTimeoutRef.current = null
+                }, 4000)
+              }
+            : undefined
+        }
         autoFocusComment={autoFocusComment}
         onAutoFocusHandled={() => setAutoFocusComment(false)}
       />
       <div className="flex-1">
-        {isUploading && (
-          <div className="mb-4 text-sm text-muted-foreground/70">Uploading...</div>
-        )}
+        {isUploading && <div className="mb-4 text-sm text-muted-foreground/70">Uploading...</div>}
         <ImageGrid
           items={items}
           selectedId={selectedId}

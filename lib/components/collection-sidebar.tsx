@@ -28,6 +28,7 @@ type CollectionSidebarProps = {
   itemCount: number
   selectedItem: ImageItem | null
   onCommentChange?: (comment: string) => void
+  onDelete?: () => void
   autoFocusComment?: boolean
   onAutoFocusHandled?: () => void
 }
@@ -37,6 +38,7 @@ export function CollectionSidebar({
   itemCount,
   selectedItem,
   onCommentChange,
+  onDelete,
   autoFocusComment,
   onAutoFocusHandled,
 }: CollectionSidebarProps) {
@@ -124,6 +126,14 @@ export function CollectionSidebar({
                 </button>
               )}
               <p className="text-[12px] text-muted-foreground/50">{selectedItem.dateCreated}</p>
+              <button
+                type="button"
+                onClick={onDelete}
+                className="text-[12px] text-muted-foreground/50 text-left bg-transparent border-none p-0 w-fit hover:underline hover:text-red-400/70 transition-colors duration-150 cursor-pointer"
+                aria-label="Delete item"
+              >
+                Delete
+              </button>
             </div>
           </motion.div>
         ) : (
