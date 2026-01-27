@@ -148,9 +148,14 @@ export function CollectionSidebar({
           >
             <div className="flex flex-col gap-2">
               <h2 className="text-[16px] font-medium capitalize">{collectionName}</h2>
-              <p className="text-[14px] text-muted-foreground/70">{itemCount} items</p>
-              <p className="text-[12px] text-muted-foreground/50 leading-">
+              <p className="text-[14px] text-muted-foreground/70">
+                {itemCount} {itemCount === 1 ? "item" : "items"}
+              </p>
+              <p className="text-[12px] text-muted-foreground/50 leading-tight mt-1">
                 Click an item to view details
+              </p>
+              <p className="text-[12px] text-muted-foreground/50 leading-tight">
+                Press again to zoom in
               </p>
             </div>
           </motion.div>
