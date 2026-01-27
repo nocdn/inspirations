@@ -95,7 +95,11 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                 }
               }}
               className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none motion-opacity-in-0 ${
-                zoomedId && !isZoomed ? "opacity-50" : ""
+                zoomedId && !isZoomed
+                  ? "opacity-50"
+                  : selectedId && selectedId !== item.id
+                    ? "opacity-40"
+                    : ""
               } ${topId === item.id ? "relative z-100" : "relative z-0"}`}
               style={{ animationDelay: `${index * 0.02}s` }}
               animate={{
