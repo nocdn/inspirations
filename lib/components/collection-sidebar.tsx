@@ -151,11 +151,13 @@ export function CollectionSidebar({
               <p className="text-[14px] text-muted-foreground/70">
                 {itemCount} {itemCount === 1 ? "item" : "items"}
               </p>
-              <p className="text-[12px] text-muted-foreground/50 leading-tight mt-1">
-                Click an item to view details
-              </p>
-              <p className="text-[12px] text-muted-foreground/50 leading-tight">
-                Press again to zoom in
+              <p className="text-[12px] text-muted-foreground/50 leading- mt-1">
+                Click an item to view details then
+                <br /> press again to zoom in and{" "}
+                <span className="text-[10px] font-inter font-medium border-shadow leading-none px-[3px] pt-[1.75px] pb-[1.5px] ml-px rounded-[3px]">
+                  ESC
+                </span>{" "}
+                <br /> to de-select.
               </p>
             </div>
           </motion.div>
