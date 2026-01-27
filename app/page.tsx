@@ -4,7 +4,7 @@ import Table from "./Table"
 
 export default function Home() {
   return (
-    <div id="content" className="w-screen pt-24 flex flex-col items-center">
+    <div id="content" className="w-screen pt-24 flex flex-col items-center px-8 md:px-0">
       {/* this descriptive content will be fully static, only the table below will be dynamic (fetched from db) */}
       <div className="w-full max-w-140 flex flex-col items-start mb-12">
         <div id="header" className="font-[450] antialiased max-w-100 flex flex-col gap-5">

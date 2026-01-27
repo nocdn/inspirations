@@ -195,7 +195,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   }, [isUploading, uploadImageFile])
 
   return (
-    <div className="flex gap-8">
+    <div className="flex flex-col md:flex-row gap-8">
       <CollectionSidebar
         collectionName={collectionName}
         itemCount={items.length}
