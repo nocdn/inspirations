@@ -28,6 +28,8 @@ type CollectionSidebarProps = {
   itemCount: number
   selectedItem: ImageItem | null
   onCommentChange?: (comment: string) => void
+  autoFocusComment?: boolean
+  onAutoFocusHandled?: () => void
 }
 
 export function CollectionSidebar({
@@ -35,6 +37,8 @@ export function CollectionSidebar({
   itemCount,
   selectedItem,
   onCommentChange,
+  autoFocusComment,
+  onAutoFocusHandled,
 }: CollectionSidebarProps) {
   const [isEditingComment, setIsEditingComment] = useState(false)
   const [editedComment, setEditedComment] = useState("")
@@ -42,6 +46,14 @@ export function CollectionSidebar({
   useEffect(() => {
     setIsEditingComment(false)
   }, [selectedItem?.id])
+
+  useEffect(() => {
+    if (autoFocusComment && selectedItem) {
+      setEditedComment(selectedItem.comment || "")
+      setIsEditingComment(true)
+      onAutoFocusHandled?.()
+    }
+  }, [autoFocusComment, selectedItem, onAutoFocusHandled])
 
   const handleCommentClick = () => {
     setEditedComment(selectedItem?.comment || "")

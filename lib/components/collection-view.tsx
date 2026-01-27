@@ -16,6 +16,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const [items, setItems] = useState<ImageItem[]>(initialItems)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [zoomedId, setZoomedId] = useState<string | null>(null)
+  const [autoFocusComment, setAutoFocusComment] = useState(false)
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
   const handleCommentChange = (id: string, comment: string) => {
@@ -54,6 +55,8 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
             }),
           }
           setItems((prev) => [newItem, ...prev])
+          setSelectedId(newItem.id)
+          setAutoFocusComment(true)
           return
         }
       }
@@ -107,6 +110,8 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         onCommentChange={
           selectedId ? (comment) => handleCommentChange(selectedId, comment) : undefined
         }
+        autoFocusComment={autoFocusComment}
+        onAutoFocusHandled={() => setAutoFocusComment(false)}
       />
       <div className="flex-1">
         <ImageGrid

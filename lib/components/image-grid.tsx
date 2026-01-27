@@ -28,19 +28,17 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
 
   const getTranslation = useCallback((id: string) => {
     const element = itemRefs.current.get(id)
-    const container = containerRef.current
-    if (!element || !container) return { x: 0, y: 0 }
+    if (!element) return { x: 0, y: 0 }
 
-    const containerRect = container.getBoundingClientRect()
     const elementRect = element.getBoundingClientRect()
 
-    const containerCenterX = containerRect.left + containerRect.width / 2
+    const viewportCenterX = window.innerWidth / 2
     const viewportCenterY = window.innerHeight / 2
     const elementCenterX = elementRect.left + elementRect.width / 2
     const elementCenterY = elementRect.top + elementRect.height / 2
 
     return {
-      x: containerCenterX - elementCenterX,
+      x: viewportCenterX - elementCenterX,
       y: viewportCenterY - elementCenterY,
     }
   }, [])
