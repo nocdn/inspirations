@@ -3,9 +3,6 @@ import Link from "next/link"
 import { getAllCollectionSlugs, getCollectionItems } from "@/lib/collections"
 import { CollectionView } from "@/lib/components/collection-view"
 
-export const revalidate = 60 * 60 * 12
-export const dynamicParams = true
-
 export async function generateStaticParams() {
   const slugs = await getAllCollectionSlugs()
   return slugs.map((slug) => ({ slug }))

@@ -1,13 +1,12 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidateTag } from "next/cache"
 
 import { eq } from "drizzle-orm"
 
 import { postsTable } from "@/db/schema"
 import { db } from "@/lib/db"
 import { getPresignedUploadUrl } from "@/lib/r2"
-import { collectionCacheKey, invalidateCache } from "@/lib/redis"
 
 export async function getUploadUrl(filename: string, contentType: string) {
   const { uploadUrl, key, publicUrl } = await getPresignedUploadUrl(filename, contentType)
@@ -32,11 +31,8 @@ export async function saveImageToCollection(
 
   console.log(`[DB INSERT] Added item ${inserted.id} to collection: ${collection}`)
 
-  await invalidateCache(collectionCacheKey(collection))
-  console.log(`[CACHE INVALIDATE] Busted cache for collection: ${collection}`)
-
-  revalidatePath(`/collections/${collection}`)
-  console.log(`[REVALIDATE] Revalidated path: /collections/${collection}`)
+  revalidateTag(`collection:${collection}`, { expire: 0 })
+  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
 
   return {
     id: inserted.id.toString(),
@@ -70,11 +66,8 @@ export async function addTweetToCollection(
 
   console.log(`[DB INSERT] Added tweet ${inserted.id} to collection: ${collection}`)
 
-  await invalidateCache(collectionCacheKey(collection))
-  console.log(`[CACHE INVALIDATE] Busted cache for collection: ${collection}`)
-
-  revalidatePath(`/collections/${collection}`)
-  console.log(`[REVALIDATE] Revalidated path: /collections/${collection}`)
+  revalidateTag(`collection:${collection}`, { expire: 0 })
+  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
 
   return {
     id: inserted.id.toString(),
@@ -105,11 +98,8 @@ export async function updateItemComment(itemId: string, collection: string, comm
 
   console.log(`[DB UPDATE] Updated comment for item ${itemId}`)
 
-  await invalidateCache(collectionCacheKey(collection))
-  console.log(`[CACHE INVALIDATE] Busted cache for collection: ${collection}`)
-
-  revalidatePath(`/collections/${collection}`)
-  console.log(`[REVALIDATE] Revalidated path: /collections/${collection}`)
+  revalidateTag(`collection:${collection}`, { expire: 0 })
+  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
 
   return {
     id: updated.id.toString(),
@@ -135,15 +125,9 @@ export async function deleteItem(itemId: string, collection: string) {
     `[DB DELETE] Deleted item ${itemId} from collection: ${collection} (${(dbTime - startTime).toFixed(2)}ms)`
   )
 
-  await invalidateCache(collectionCacheKey(collection))
-  const cacheTime = performance.now()
-  console.log(
-    `[CACHE INVALIDATE] Busted cache for collection: ${collection} (${(cacheTime - dbTime).toFixed(2)}ms)`
-  )
-
-  revalidatePath(`/collections/${collection}`)
+  revalidateTag(`collection:${collection}`, { expire: 0 })
   const totalTime = performance.now()
-  console.log(`[REVALIDATE] Revalidated path: /collections/${collection}`)
+  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
   console.log(`[TOTAL] Delete operation completed in ${(totalTime - startTime).toFixed(2)}ms`)
 
   return { id: deleted.id.toString() }
