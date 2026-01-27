@@ -77,7 +77,7 @@ export function CollectionSidebar({
 
   return (
     <div className="w-[240px] shrink-0 sticky top-24 h-fit">
-      <AnimatePresence mode="popLayout" custom={1}>
+      <AnimatePresence mode="popLayout" custom={1} initial={false}>
         {selectedItem ? (
           <motion.div
             key={selectedItem.id}
