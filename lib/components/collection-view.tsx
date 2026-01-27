@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { CollectionSidebar } from "@/lib/components/collection-sidebar"
 import { ImageGrid } from "@/lib/components/image-grid"
@@ -18,6 +18,23 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const [zoomedId, setZoomedId] = useState<string | null>(null)
   const [autoFocusComment, setAutoFocusComment] = useState(false)
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
+
+  const addImageFile = useCallback((file: File) => {
+    const objectUrl = URL.createObjectURL(file)
+    const newItem: ImageItem = {
+      id: `dropped-${Date.now()}`,
+      imageUrl: objectUrl,
+      title: file.name || "Dropped Image",
+      dateCreated: new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    }
+    setItems((prev) => [newItem, ...prev])
+    setSelectedId(newItem.id)
+    setAutoFocusComment(true)
+  }, [])
 
   const handleCommentChange = (id: string, comment: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, comment } : item)))
@@ -43,20 +60,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
       if (files && files.length > 0) {
         const file = files[0]
         if (file.type.startsWith("image/")) {
-          const objectUrl = URL.createObjectURL(file)
-          const newItem: ImageItem = {
-            id: `pasted-${Date.now()}`,
-            imageUrl: objectUrl,
-            title: file.name || "Pasted Image",
-            dateCreated: new Date().toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }),
-          }
-          setItems((prev) => [newItem, ...prev])
-          setSelectedId(newItem.id)
-          setAutoFocusComment(true)
+          addImageFile(file)
           return
         }
       }
@@ -99,11 +103,35 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
     window.addEventListener("paste", handlePaste)
     return () => window.removeEventListener("paste", handlePaste)
-  }, [])
+  }, [addImageFile])
+
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault()
+    }
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault()
+      const files = e.dataTransfer?.files
+      if (files && files.length > 0) {
+        const file = files[0]
+        if (file.type.startsWith("image/")) {
+          addImageFile(file)
+        }
+      }
+    }
+
+    window.addEventListener("dragover", handleDragOver)
+    window.addEventListener("drop", handleDrop)
+    return () => {
+      window.removeEventListener("dragover", handleDragOver)
+      window.removeEventListener("drop", handleDrop)
+    }
+  }, [addImageFile])
 
   return (
     <div className="flex gap-8">
-      <CollectionSidebar
+        <CollectionSidebar
         collectionName={collectionName}
         itemCount={items.length}
         selectedItem={selectedItem}

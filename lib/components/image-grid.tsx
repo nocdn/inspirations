@@ -118,12 +118,12 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   {isZoomed && (
                     <>
                       <motion.div
-                        initial={{ opacity: 0, scale: 0.2, x: -20 }}
+                        initial={{ opacity: 0, scale: 0.3, x: -20 }}
                         animate={{ opacity: 1, scale: 0.4, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.2, x: -20 }}
+                        exit={{ opacity: 0, scale: 0.3, x: -20 }}
                         transition={{ type: "spring", stiffness: 300, damping: 35 }}
-                        style={{ willChange: "transform, opacity" }}
-                        className="absolute left-full top-0 ml-2 text-white font-mono text-[12px] uppercase tracking-wide z-60 pointer-events-none origin-top-left mt-0.5"
+                        style={{ willChange: "transform, opacity", fontFamily: "SF Mono" }}
+                        className="absolute left-full top-0 ml-2 text-white text-[12px] uppercase tracking-wide z-60 pointer-events-none origin-top-left mt-0.5"
                       >
                         <div className="flex flex-col gap-4 w-48">
                           <div>
