@@ -18,7 +18,7 @@ export default async function CollectionPage({ params }: PageProps) {
 
   return (
     <div className="w-screen pt-24 flex flex-col items-center px-6">
-      <div className="w-full max-w-6xl">
+      <div className="w-full max-w-5xl">
         <div className="mb-8">
           <Link
             href="/"
