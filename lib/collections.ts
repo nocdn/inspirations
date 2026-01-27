@@ -10,9 +10,9 @@ export async function getCollectionItems(slug: string): Promise<ImageItem[]> {
   "use cache"
   cacheTag(`collection:${slug}`)
   cacheLife({
-    stale: 60 * 5,           // 5 minutes
-    revalidate: 60 * 60,     // 1 hour
-    expire: 60 * 60 * 24 * 7 // 7 days
+    stale: 60 * 5,
+    revalidate: 60 * 60,
+    expire: 60 * 60 * 24 * 7,
   })
 
   const posts = await db.select().from(postsTable).where(eq(postsTable.collection, slug))

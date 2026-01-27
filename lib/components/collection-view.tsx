@@ -93,17 +93,14 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [zoomedId])
 
-  // Handle Cmd/Ctrl+Z to undo pending deletion
   useEffect(() => {
     const handleUndo = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && pendingDeletion) {
         e.preventDefault()
-        // Cancel the pending deletion
         if (deleteTimeoutRef.current) {
           clearTimeout(deleteTimeoutRef.current)
           deleteTimeoutRef.current = null
         }
-        // Restore the item to the list
         setItems((prev) => [pendingDeletion, ...prev])
         setPendingDeletion(null)
         console.log(`[UNDO] Restored item ${pendingDeletion.id}`)
@@ -113,7 +110,6 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
     return () => window.removeEventListener("keydown", handleUndo)
   }, [pendingDeletion])
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (deleteTimeoutRef.current) {

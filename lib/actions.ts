@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag } from "next/cache"
+import { updateTag } from "next/cache"
 
 import { eq } from "drizzle-orm"
 
@@ -31,8 +31,8 @@ export async function saveImageToCollection(
 
   console.log(`[DB INSERT] Added item ${inserted.id} to collection: ${collection}`)
 
-  revalidateTag(`collection:${collection}`, { expire: 0 })
-  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
+  updateTag(`collection:${collection}`)
+  console.log(`[CACHE INVALIDATE] Updated cache for collection: ${collection}`)
 
   return {
     id: inserted.id.toString(),
@@ -66,8 +66,8 @@ export async function addTweetToCollection(
 
   console.log(`[DB INSERT] Added tweet ${inserted.id} to collection: ${collection}`)
 
-  revalidateTag(`collection:${collection}`, { expire: 0 })
-  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
+  updateTag(`collection:${collection}`)
+  console.log(`[CACHE INVALIDATE] Updated cache for collection: ${collection}`)
 
   return {
     id: inserted.id.toString(),
@@ -98,8 +98,8 @@ export async function updateItemComment(itemId: string, collection: string, comm
 
   console.log(`[DB UPDATE] Updated comment for item ${itemId}`)
 
-  revalidateTag(`collection:${collection}`, { expire: 0 })
-  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
+  updateTag(`collection:${collection}`)
+  console.log(`[CACHE INVALIDATE] Updated cache for collection: ${collection}`)
 
   return {
     id: updated.id.toString(),
@@ -125,9 +125,9 @@ export async function deleteItem(itemId: string, collection: string) {
     `[DB DELETE] Deleted item ${itemId} from collection: ${collection} (${(dbTime - startTime).toFixed(2)}ms)`
   )
 
-  revalidateTag(`collection:${collection}`, { expire: 0 })
+  updateTag(`collection:${collection}`)
   const totalTime = performance.now()
-  console.log(`[REVALIDATE TAG] Invalidated cache for collection: ${collection}`)
+  console.log(`[CACHE INVALIDATE] Updated cache for collection: ${collection}`)
   console.log(`[TOTAL] Delete operation completed in ${(totalTime - startTime).toFixed(2)}ms`)
 
   return { id: deleted.id.toString() }
