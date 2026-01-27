@@ -1,10 +1,7 @@
-// this page will be server rendered
-// it does not contain 'use client' and so can be fully rendered on server
 import { Suspense } from "react"
 
 import Table from "./Table"
 
-// make sure to pass other elements as children to keep them server rendered
 export default function Home() {
   return (
     <div id="content" className="w-screen pt-24 flex flex-col items-center">

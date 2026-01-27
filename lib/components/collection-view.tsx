@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { addImageToCollection, addTweetToCollection } from "@/lib/actions"
 import { CollectionSidebar } from "@/lib/components/collection-sidebar"
 import { ImageGrid } from "@/lib/components/image-grid"
 import { getTweetData } from "@/lib/twitter"
@@ -17,24 +18,29 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [zoomedId, setZoomedId] = useState<string | null>(null)
   const [autoFocusComment, setAutoFocusComment] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
-  const addImageFile = useCallback((file: File) => {
-    const objectUrl = URL.createObjectURL(file)
-    const newItem: ImageItem = {
-      id: `dropped-${Date.now()}`,
-      imageUrl: objectUrl,
-      title: file.name || "Dropped Image",
-      dateCreated: new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-    }
-    setItems((prev) => [newItem, ...prev])
-    setSelectedId(newItem.id)
-    setAutoFocusComment(true)
-  }, [])
+  const uploadImageFile = useCallback(
+    async (file: File) => {
+      setIsUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("collection", collectionName)
+
+        const newItem = await addImageToCollection(formData)
+        setItems((prev) => [newItem, ...prev])
+        setSelectedId(newItem.id)
+        setAutoFocusComment(true)
+      } catch (err) {
+        console.error("Failed to upload image:", err)
+      } finally {
+        setIsUploading(false)
+      }
+    },
+    [collectionName]
+  )
 
   const handleCommentChange = (id: string, comment: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, comment } : item)))
@@ -56,11 +62,13 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
+      if (isUploading) return
+
       const files = e.clipboardData?.files
       if (files && files.length > 0) {
         const file = files[0]
         if (file.type.startsWith("image/")) {
-          addImageFile(file)
+          uploadImageFile(file)
           return
         }
       }
@@ -83,17 +91,14 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         console.log("Tweet text:", tweet.text)
         console.log("Image URLs:", tweet.imageUrls)
 
-        const newItem: ImageItem = {
-          id: `tweet-${Date.now()}`,
-          imageUrl: tweet.imageUrls[0] ?? tweet.author.profileImageUrl,
-          title: tweet.author.name,
-          comment: tweet.text.slice(0, 100),
-          dateCreated: new Date(tweet.createdAt).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-        }
+        const imageUrl = tweet.imageUrls[0] ?? tweet.author.profileImageUrl
+        const newItem = await addTweetToCollection(
+          collectionName,
+          text,
+          imageUrl,
+          tweet.author.name,
+          tweet.text.slice(0, 100)
+        )
 
         setItems((prev) => [newItem, ...prev])
       } catch (err) {
@@ -103,7 +108,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
     window.addEventListener("paste", handlePaste)
     return () => window.removeEventListener("paste", handlePaste)
-  }, [addImageFile])
+  }, [collectionName, isUploading, uploadImageFile])
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -112,11 +117,13 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault()
+      if (isUploading) return
+
       const files = e.dataTransfer?.files
       if (files && files.length > 0) {
         const file = files[0]
         if (file.type.startsWith("image/")) {
-          addImageFile(file)
+          uploadImageFile(file)
         }
       }
     }
@@ -127,11 +134,11 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
       window.removeEventListener("dragover", handleDragOver)
       window.removeEventListener("drop", handleDrop)
     }
-  }, [addImageFile])
+  }, [isUploading, uploadImageFile])
 
   return (
     <div className="flex gap-8">
-        <CollectionSidebar
+      <CollectionSidebar
         collectionName={collectionName}
         itemCount={items.length}
         selectedItem={selectedItem}
@@ -142,6 +149,9 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         onAutoFocusHandled={() => setAutoFocusComment(false)}
       />
       <div className="flex-1">
+        {isUploading && (
+          <div className="mb-4 text-sm text-muted-foreground/70">Uploading...</div>
+        )}
         <ImageGrid
           items={items}
           selectedId={selectedId}
