@@ -36,12 +36,17 @@ const rows: Row[] = [
   },
 ]
 
+// Add rows for:
+// - OpenGraph Images
+// - Colours
+// - Logos
+
 export default function Table() {
   return (
     <div className="w-full max-w-[567px]">
       <table className="w-full text-[14px] border-collapse">
         <thead>
-          <tr className="text-left border-b text-muted-foreground/60">
+          <tr className="text-left border-b text-muted-foreground/60 ">
             <th className="py-2 pl-[3px] pr-4 font-[330] text-[13px]">#</th>
             <th className="py-2 pr-4 font-[330] text-[13px]">Collection</th>
             <th className="py-2 pr-[5px] font-[330] text-right text-[13px]">Count</th>

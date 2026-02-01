@@ -1,10 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
+import { Loader } from "lucide-react"
 import { AnimatePresence, type Variants, motion } from "motion/react"
 
 import type { ImageItem } from "@/lib/types"
+
+type UploadingState = {
+  type: "image" | "tweet" | "url"
+  title: string
+  tempId: string
+} | null
 
 const variants: Variants = {
   enter: {
@@ -27,8 +34,11 @@ type CollectionSidebarProps = {
   collectionName: string
   itemCount: number
   selectedItem: ImageItem | null
+  uploadingState?: UploadingState
   onCommentChange?: (comment: string) => void
+  onCommentCancel?: () => void
   onDelete?: () => void
+  onCancelUpload?: () => void
   autoFocusComment?: boolean
   onAutoFocusHandled?: () => void
 }
@@ -37,13 +47,17 @@ export function CollectionSidebar({
   collectionName,
   itemCount,
   selectedItem,
+  uploadingState,
   onCommentChange,
+  onCommentCancel,
   onDelete,
+  onCancelUpload,
   autoFocusComment,
   onAutoFocusHandled,
 }: CollectionSidebarProps) {
   const [isEditingComment, setIsEditingComment] = useState(false)
   const [editedComment, setEditedComment] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setIsEditingComment(false)
@@ -51,13 +65,22 @@ export function CollectionSidebar({
 
   useEffect(() => {
     if (autoFocusComment && selectedItem) {
-      setEditedComment(selectedItem.comment || "")
+      setEditedComment(selectedItem?.comment || "")
       setIsEditingComment(true)
       onAutoFocusHandled?.()
     }
   }, [autoFocusComment, selectedItem, onAutoFocusHandled])
 
-  const handleCommentClick = () => {
+  useEffect(() => {
+    if (isEditingComment && inputRef.current) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
+    }
+  }, [isEditingComment])
+
+  const handleCommentClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
     setEditedComment(selectedItem?.comment || "")
     setIsEditingComment(true)
   }
@@ -72,13 +95,45 @@ export function CollectionSidebar({
       handleCommentSave()
     } else if (e.key === "Escape") {
       setIsEditingComment(false)
+      onCommentCancel?.()
     }
   }
+
+  const isUploading = !!uploadingState
+  const showUploadingPane = isUploading && !selectedItem
 
   return (
     <div className="w-full md:w-[240px] shrink-0 md:sticky md:top-24 h-fit">
       <AnimatePresence mode="popLayout" custom={1} initial={false}>
-        {selectedItem ? (
+        {showUploadingPane ? (
+          <motion.div
+            key="uploading"
+            custom={1}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-[16px] font-medium">
+                <Loader className="h-4 w-4 animate-spin" />
+                <span>Uploading {uploadingState.type}</span>
+              </div>
+              <p className="text-[12px] text-muted-foreground/50">
+                {new Date().toLocaleDateString("en-GB")}
+              </p>
+              <button
+                type="button"
+                onMouseDown={onCancelUpload}
+                className="text-[12px] text-muted-foreground/50 text-left bg-transparent border-none p-0 w-fit hover:underline hover:text-red-400/70 transition-colors duration-150 cursor-pointer"
+                aria-label="Cancel upload"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        ) : selectedItem ? (
           <motion.div
             key={selectedItem.id}
             custom={1}
@@ -88,19 +143,16 @@ export function CollectionSidebar({
             exit="exit"
             className="flex flex-col gap-4"
           >
-            {/* <div className="text-[12px] text-muted-foreground/60 font-pp-supply-mono">
-              Item Details
-            </div> */}
             <div className="flex flex-col gap-2">
               <h2 className="text-[16px] font-medium">{selectedItem.title}</h2>
               {isEditingComment ? (
                 <input
+                  ref={inputRef}
                   type="text"
                   value={editedComment}
                   onChange={(e) => setEditedComment(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onBlur={handleCommentSave}
-                  autoFocus
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
@@ -109,7 +161,7 @@ export function CollectionSidebar({
               ) : selectedItem.comment ? (
                 <button
                   type="button"
-                  onClick={handleCommentClick}
+                  onMouseDown={handleCommentClick}
                   className="text-[14px] text-muted-foreground/70 cursor-text text-left bg-transparent border-none p-0"
                   aria-label="Edit comment"
                 >
@@ -118,7 +170,7 @@ export function CollectionSidebar({
               ) : (
                 <button
                   type="button"
-                  onClick={handleCommentClick}
+                  onMouseDown={handleCommentClick}
                   className="text-[14px] text-muted-foreground/40 cursor-text italic text-left bg-transparent border-none p-0"
                   aria-label="Add comment"
                 >
@@ -128,7 +180,7 @@ export function CollectionSidebar({
               <p className="text-[12px] text-muted-foreground/50">{selectedItem.dateCreated}</p>
               <button
                 type="button"
-                onClick={onDelete}
+                onMouseDown={onDelete}
                 className="text-[12px] text-muted-foreground/50 text-left bg-transparent border-none p-0 w-fit hover:underline hover:text-red-400/70 transition-colors duration-150 cursor-pointer"
                 aria-label="Delete item"
               >

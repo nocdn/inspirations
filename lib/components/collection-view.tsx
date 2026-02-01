@@ -14,6 +14,12 @@ import { ImageGrid } from "@/lib/components/image-grid"
 import { getTweetData } from "@/lib/twitter"
 import type { ImageItem } from "@/lib/types"
 
+type UploadingState = {
+  type: "image" | "tweet" | "url"
+  title: string
+  tempId: string
+} | null
+
 type CollectionViewProps = {
   collectionName: string
   items: ImageItem[]
@@ -24,14 +30,18 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [zoomedId, setZoomedId] = useState<string | null>(null)
   const [autoFocusComment, setAutoFocusComment] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
+  const [uploadingState, setUploadingState] = useState<UploadingState>(null)
   const [pendingDeletion, setPendingDeletion] = useState<ImageItem | null>(null)
+  const [newlyUploadedId, setNewlyUploadedId] = useState<string | null>(null)
   const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
   const uploadImageFile = useCallback(
     async (file: File) => {
-      setIsUploading(true)
+      const tempId = `temp-${Date.now()}`
+      setUploadingState({ type: "image", title: file.name, tempId })
+      setSelectedId(tempId)
+
       try {
         const { uploadUrl, publicUrl } = await getUploadUrl(file.name, file.type)
 
@@ -51,13 +61,16 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         }
 
         const newItem = await saveImageToCollection(collectionName, publicUrl, file.name)
+
         setItems((prev) => [newItem, ...prev])
         setSelectedId(newItem.id)
+        setNewlyUploadedId(newItem.id)
+        setUploadingState(null)
         setAutoFocusComment(true)
       } catch (err) {
         console.error("Failed to upload image:", err)
-      } finally {
-        setIsUploading(false)
+        setUploadingState(null)
+        setSelectedId(null)
       }
     },
     [collectionName]
@@ -65,6 +78,12 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
   const handleCommentChange = async (id: string, comment: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, comment } : item)))
+
+    const wasNewlyUploaded = newlyUploadedId === id
+    if (wasNewlyUploaded) {
+      setNewlyUploadedId(null)
+      setSelectedId(null)
+    }
 
     try {
       await updateItemComment(id, collectionName, comment)
@@ -76,6 +95,13 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
           prev.map((item) => (item.id === id ? { ...item, comment: originalItem.comment } : item))
         )
       }
+    }
+  }
+
+  const handleCommentCancel = () => {
+    if (newlyUploadedId && selectedId === newlyUploadedId) {
+      setNewlyUploadedId(null)
+      setSelectedId(null)
     }
   }
 
@@ -120,7 +146,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
-      if (isUploading) return
+      if (uploadingState) return
 
       const files = e.clipboardData?.files
       if (files && files.length > 0) {
@@ -137,17 +163,18 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
       const isTwitterUrl = /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(text)
       if (!isTwitterUrl) return
 
-      console.log("Fetching tweet:", text)
+      const tempId = `temp-${Date.now()}`
+      setUploadingState({ type: "tweet", title: text.slice(0, 50), tempId })
+      setSelectedId(tempId)
 
       try {
         const tweet = await getTweetData(text)
         if (!tweet) {
           console.log("Tweet not found")
+          setUploadingState(null)
+          setSelectedId(null)
           return
         }
-
-        console.log("Tweet text:", tweet.text)
-        console.log("Image URLs:", tweet.imageUrls)
 
         const imageUrl = tweet.imageUrls[0] ?? tweet.author.profileImageUrl
         const newItem = await addTweetToCollection(
@@ -159,14 +186,20 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         )
 
         setItems((prev) => [newItem, ...prev])
+        setSelectedId(newItem.id)
+        setNewlyUploadedId(newItem.id)
+        setUploadingState(null)
+        setAutoFocusComment(true)
       } catch (err) {
         console.error("Failed to fetch tweet:", err)
+        setUploadingState(null)
+        setSelectedId(null)
       }
     }
 
     window.addEventListener("paste", handlePaste)
     return () => window.removeEventListener("paste", handlePaste)
-  }, [collectionName, isUploading, uploadImageFile])
+  }, [collectionName, uploadingState, uploadImageFile])
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -175,7 +208,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault()
-      if (isUploading) return
+      if (uploadingState) return
 
       const files = e.dataTransfer?.files
       if (files && files.length > 0) {
@@ -192,7 +225,12 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
       window.removeEventListener("dragover", handleDragOver)
       window.removeEventListener("drop", handleDrop)
     }
-  }, [isUploading, uploadImageFile])
+  }, [uploadingState, uploadImageFile])
+
+  const handleCancelUpload = () => {
+    setUploadingState(null)
+    setSelectedId(null)
+  }
 
   return (
     <div className="flex flex-col md:flex-row gap-8">
@@ -200,11 +238,13 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         collectionName={collectionName}
         itemCount={items.length}
         selectedItem={selectedItem}
+        uploadingState={uploadingState}
         onCommentChange={
           selectedId ? (comment) => handleCommentChange(selectedId, comment) : undefined
         }
+        onCommentCancel={handleCommentCancel}
         onDelete={
-          selectedId
+          selectedId && !uploadingState
             ? () => {
                 const itemToDelete = items.find((item) => item.id === selectedId)
                 if (!itemToDelete) return
@@ -232,11 +272,11 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
               }
             : undefined
         }
+        onCancelUpload={uploadingState ? handleCancelUpload : undefined}
         autoFocusComment={autoFocusComment}
         onAutoFocusHandled={() => setAutoFocusComment(false)}
       />
       <div className="flex-1">
-        {isUploading && <div className="mb-4 text-sm text-muted-foreground/70">Uploading...</div>}
         <ImageGrid
           items={items}
           selectedId={selectedId}

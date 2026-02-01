@@ -92,6 +92,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
 
           return (
             <motion.button
+              layout
               key={item.id}
               ref={(el) => {
                 if (el) itemRefs.current.set(item.id, el)

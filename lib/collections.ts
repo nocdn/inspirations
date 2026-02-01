@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 
-import { eq } from "drizzle-orm"
+import { desc, eq } from "drizzle-orm"
 
 import { postsTable } from "@/db/schema"
 import { db } from "@/lib/db"
@@ -15,7 +15,7 @@ export async function getCollectionItems(slug: string): Promise<ImageItem[]> {
     expire: 60 * 60 * 24 * 7,
   })
 
-  const posts = await db.select().from(postsTable).where(eq(postsTable.collection, slug))
+  const posts = await db.select().from(postsTable).where(eq(postsTable.collection, slug)).orderBy(desc(postsTable.createdAt))
 
   return posts.map((post) => ({
     id: post.id.toString(),
