@@ -7,7 +7,12 @@ import ogs from "open-graph-scraper"
 
 import { postsTable } from "@/db/schema"
 import { db } from "@/lib/db"
-import { getPresignedUploadUrl } from "@/lib/r2"
+import {
+  deleteObjectFromR2,
+  getPresignedUploadUrl,
+  getR2KeyFromPublicUrl,
+  uploadBufferToR2,
+} from "@/lib/r2"
 
 function isPrivateIPv4(hostname: string) {
   const parts = hostname.split(".").map(Number)
@@ -62,6 +67,72 @@ function normalizeHttpUrl(input: string) {
   }
 
   return parsed
+}
+
+function normalizeHttpUrlFromBase(input: string, base: URL) {
+  const parsed = new URL(input, base)
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("Only HTTP(S) URLs are supported")
+  }
+
+  if (isBlockedHostname(parsed.hostname)) {
+    throw new Error("This URL host is not allowed")
+  }
+
+  return parsed
+}
+
+function getExtensionFromContentType(contentType: string | null) {
+  if (!contentType) return "bin"
+
+  const normalized = contentType.toLowerCase().split(";")[0].trim()
+  const mapping: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/avif": "avif",
+    "image/svg+xml": "svg",
+  }
+
+  return mapping[normalized] || "bin"
+}
+
+async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
+  const response = await fetch(imageUrl, {
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to download OG image (${response.status})`)
+  }
+
+  const contentLengthHeader = response.headers.get("content-length")
+  const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : NaN
+  const maxBytes = 15 * 1024 * 1024
+  if (!Number.isNaN(contentLength) && contentLength > maxBytes) {
+    throw new Error("OG image is too large to cache")
+  }
+
+  const contentTypeHeader = response.headers.get("content-type")
+  const normalizedContentType = contentTypeHeader?.toLowerCase().split(";")[0].trim()
+  if (normalizedContentType && !normalizedContentType.startsWith("image/")) {
+    throw new Error("OG image URL did not return an image")
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  if (arrayBuffer.byteLength > maxBytes) {
+    throw new Error("OG image is too large to cache")
+  }
+
+  const ext = getExtensionFromContentType(contentTypeHeader)
+  const filename = `og-${sourceHostname}.${ext}`
+  return uploadBufferToR2(new Uint8Array(arrayBuffer), filename, normalizedContentType)
 }
 
 function getFirstImageUrl(result: {
@@ -181,7 +252,12 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
     throw new Error("No preview image was found for this URL")
   }
 
-  const resolvedImageUrl = new URL(image, parsedUrl).toString()
+  const resolvedImageUrl = normalizeHttpUrlFromBase(image, parsedUrl)
+  const uploadedOgImage = await uploadRemoteImageToR2(
+    resolvedImageUrl.toString(),
+    parsedUrl.hostname
+  )
+
   const title =
     response.result.ogTitle ||
     response.result.twitterTitle ||
@@ -200,7 +276,7 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
     .values({
       collection,
       url: title,
-      imageUrl: resolvedImageUrl,
+      imageUrl: uploadedOgImage.publicUrl,
       comment: description,
     })
     .returning()
@@ -260,6 +336,16 @@ export async function deleteItem(itemId: string, collection: string) {
 
   if (!deleted) {
     throw new Error(`Item ${itemId} not found`)
+  }
+
+  const maybeR2Key = getR2KeyFromPublicUrl(deleted.imageUrl)
+  if (maybeR2Key) {
+    try {
+      await deleteObjectFromR2(maybeR2Key)
+      console.log(`[R2 DELETE] Deleted object ${maybeR2Key}`)
+    } catch (error) {
+      console.error(`[R2 DELETE] Failed to delete object ${maybeR2Key}:`, error)
+    }
   }
 
   console.log(

@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 const R2 = new S3Client({
@@ -14,6 +14,59 @@ const R2 = new S3Client({
 
 const BUCKET_NAME = "inspirations"
 const PUBLIC_URL = "https://images.bartoszbak.org"
+
+function sanitizeFilename(filename: string) {
+  return filename
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .slice(0, 120)
+}
+
+export function getR2KeyFromPublicUrl(publicUrl: string): string | null {
+  if (!publicUrl.startsWith(`${PUBLIC_URL}/`)) {
+    return null
+  }
+
+  const key = publicUrl.slice(PUBLIC_URL.length + 1)
+  if (!key) {
+    return null
+  }
+
+  return key
+}
+
+export async function uploadBufferToR2(
+  body: Uint8Array,
+  filename: string,
+  contentType?: string
+): Promise<{ key: string; publicUrl: string }> {
+  const safeFilename = sanitizeFilename(filename) || "upload.bin"
+  const key = `${Date.now()}-${safeFilename}`
+
+  await R2.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: body,
+      ...(contentType ? { ContentType: contentType } : {}),
+    })
+  )
+
+  return {
+    key,
+    publicUrl: `${PUBLIC_URL}/${key}`,
+  }
+}
+
+export async function deleteObjectFromR2(key: string) {
+  await R2.send(
+    new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    })
+  )
+}
 
 export async function getPresignedUploadUrl(
   filename: string,

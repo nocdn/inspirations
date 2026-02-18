@@ -1,10 +1,18 @@
 import Link from "next/link"
+import { notFound } from "next/navigation"
 
 import { getAllCollectionSlugs, getCollectionItems } from "@/lib/collections"
 import { CollectionView } from "@/lib/components/collection-view"
 
+const EMPTY_COLLECTION_PLACEHOLDER = "__placeholder__"
+
 export async function generateStaticParams() {
   const slugs = await getAllCollectionSlugs()
+
+  if (slugs.length === 0) {
+    return [{ slug: EMPTY_COLLECTION_PLACEHOLDER }]
+  }
+
   return slugs.map((slug) => ({ slug }))
 }
 
@@ -14,6 +22,11 @@ type PageProps = {
 
 export default async function CollectionPage({ params }: PageProps) {
   const { slug } = await params
+
+  if (slug === EMPTY_COLLECTION_PLACEHOLDER) {
+    notFound()
+  }
+
   const items = await getCollectionItems(slug)
 
   return (

@@ -316,7 +316,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
                     setPendingDeletion(null)
                   }
                   deleteTimeoutRef.current = null
-                }, 4000)
+                }, 5000)
               }
             : undefined
         }
