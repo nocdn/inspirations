@@ -94,7 +94,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
         {zoomedId && (
           <motion.div
             initial={{ opacity: 0, backdropFilter: isMobile ? "blur(0px)" : "none" }}
-            animate={{ opacity: 1, backdropFilter: isMobile ? "blur(2px)" : "none" }}
+            animate={{ opacity: 1, backdropFilter: isMobile ? "blur(1px)" : "none" }}
             exit={{ opacity: 0, backdropFilter: isMobile ? "blur(0px)" : "none" }}
             transition={{ duration: 0.3 }}
             onMouseDown={(e) => {
@@ -151,71 +151,33 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   className="h-auto w-full md:w-auto md:max-h-[150px]"
                   unoptimized
                 />
-                {!isMobile && (
-                  <motion.div
-                    initial={false}
-                    animate={{ opacity: isZoomed ? 1 : 0 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    style={{ willChange: "opacity", fontFamily: "SF Mono" }}
-                    className="absolute left-full top-0 ml-2 text-white text-[5px] uppercase tracking-wide z-60 pointer-events-none origin-top-left mt-0.5"
-                  >
-                    <div className="flex flex-col gap-2 w-48">
-                      <div>
-                        <div className="text-white/50 mb-0.5 font-medium">Resolution</div>
-                        <div>{resolutionText}</div>
-                      </div>
-                      <div>
-                        <div className="text-white/50 mb-0.5 font-medium">Filename</div>
-                        <div className="break-all">{item.title}</div>
-                      </div>
-                      <div>
-                        <div className="text-white/50 mb-0.5 font-medium">Date Created</div>
-                        <div>{item.dateCreated}</div>
-                      </div>
-                      <div>
-                        <div className="text-white/50 mb-0.5 font-medium">Index</div>
-                        <div>{(index + 1).toString().padStart(2, "0")}</div>
-                      </div>
+                <motion.div
+                  initial={false}
+                  animate={{ opacity: isZoomed ? 1 : 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  style={{
+                    willChange: "opacity",
+                    fontFamily: isMobile
+                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+                      : "SF Mono",
+                  }}
+                  className="absolute top-full left-0 mt-2 text-white text-[10px] md:text-[5px] uppercase tracking-wide z-60 pointer-events-none origin-top-left text-left md:top-0 md:left-full md:mt-0.5 md:ml-2"
+                >
+                  <div className="flex flex-row gap-7 items-start md:flex-col md:gap-2 md:w-48">
+                    <div className="shrink-0">
+                      <div className="text-white/50 mb-px font-medium">Resolution</div>
+                      <div>{resolutionText}</div>
                     </div>
-                  </motion.div>
-                )}
-                <AnimatePresence>
-                  {isZoomed && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0, scale: isMobile ? 1 : 0.2, y: -20 }}
-                        animate={{ opacity: 1, scale: isMobile ? 1 : 0.4, y: 0 }}
-                        exit={{ opacity: 0, scale: isMobile ? 1 : 0.2, y: -20 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 35 }}
-                        style={{ fontFamily: "SF Mono", willChange: "transform, opacity" }}
-                        className="absolute top-full left-0 mt-2 text-white text-[9px] uppercase tracking-wide z-60 pointer-events-none origin-top-left"
-                      >
-                        <div className="flex flex-col gap-4 w-48">
-                          {isMobile && (
-                            <>
-                              <div>
-                                <div className="text-white/50 mb-1 font-medium">Resolution</div>
-                                <div>{resolutionText}</div>
-                              </div>
-                              <div>
-                                <div className="text-white/50 mb-1 font-medium">Filename</div>
-                                <div className="break-all">{item.title}</div>
-                              </div>
-                              <div>
-                                <div className="text-white/50 mb-1 font-medium">Date Created</div>
-                                <div>{item.dateCreated}</div>
-                              </div>
-                              <div>
-                                <div className="text-white/50 mb-1 font-medium">Index</div>
-                                <div>{(index + 1).toString().padStart(2, "0")}</div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+                    <div className="min-w-0">
+                      <div className="text-white/50 mb-px font-medium">Filename</div>
+                      <div className="break-all">{item.title}</div>
+                    </div>
+                    <div className="shrink-0">
+                      <div className="text-white/50 mb-px font-medium">Date Created</div>
+                      <div>{item.dateCreated}</div>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
               <span
                 className="font-pp-supply-mono font-light text-[9px] text-muted-foreground/60 transition-opacity duration-100"
