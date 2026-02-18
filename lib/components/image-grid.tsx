@@ -21,6 +21,9 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const [topId, setTopId] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [imageDimensions, setImageDimensions] = useState<
+    Record<string, { width: number; height: number }>
+  >({})
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -68,6 +71,23 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
     }
   }
 
+  const handleImageLoad = (id: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget
+    if (!naturalWidth || !naturalHeight) return
+
+    setImageDimensions((prev) => {
+      const existing = prev[id]
+      if (existing && existing.width === naturalWidth && existing.height === naturalHeight) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [id]: { width: naturalWidth, height: naturalHeight },
+      }
+    })
+  }
+
   return (
     <>
       <AnimatePresence>
@@ -89,6 +109,8 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
         {items.map((item, index) => {
           const isZoomed = zoomedId === item.id
           const translation = isZoomed ? getTranslation(item.id) : { x: 0, y: 0 }
+          const dimensions = imageDimensions[item.id]
+          const resolutionText = dimensions ? `${dimensions.width} × ${dimensions.height}` : "—"
 
           return (
             <motion.button
@@ -125,6 +147,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   alt={item.title}
                   width={300}
                   height={300}
+                  onLoad={(event) => handleImageLoad(item.id, event)}
                   className="h-auto w-full md:w-auto md:max-h-[150px]"
                   unoptimized
                 />
@@ -143,7 +166,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                           <div className="flex flex-col gap-4 w-48">
                             <div>
                               <div className="text-white/50 mb-1 font-medium">Resolution</div>
-                              <div>300 × 300</div>
+                              <div>{resolutionText}</div>
                             </div>
                             <div>
                               <div className="text-white/50 mb-1 font-medium">Filename</div>
@@ -152,10 +175,6 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                             <div>
                               <div className="text-white/50 mb-1 font-medium">Date Created</div>
                               <div>{item.dateCreated}</div>
-                            </div>
-                            <div>
-                              <div className="text-white/50 mb-1 font-medium">Index</div>
-                              <div>{(index + 1).toString().padStart(2, "0")}</div>
                             </div>
                           </div>
                         </motion.div>
@@ -173,7 +192,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                             <>
                               <div>
                                 <div className="text-white/50 mb-1 font-medium">Resolution</div>
-                                <div>300 × 300</div>
+                                <div>{resolutionText}</div>
                               </div>
                               <div>
                                 <div className="text-white/50 mb-1 font-medium">Filename</div>
@@ -188,12 +207,6 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                                 <div>{(index + 1).toString().padStart(2, "0")}</div>
                               </div>
                             </>
-                          )}
-                          {item.comment && (
-                            <div>
-                              <div className="text-white/50 mb-1 font-medium">Notes</div>
-                              <div className="normal-case tracking-normal">{item.comment}</div>
-                            </div>
                           )}
                         </div>
                       </motion.div>

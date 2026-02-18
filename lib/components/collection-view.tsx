@@ -56,9 +56,9 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const [zoomedId, setZoomedId] = useState<string | null>(null)
   const [autoFocusComment, setAutoFocusComment] = useState(false)
   const [uploadingState, setUploadingState] = useState<UploadingState>(null)
-  const [pendingDeletion, setPendingDeletion] = useState<ImageItem | null>(null)
+  const [pendingDeletions, setPendingDeletions] = useState<ImageItem[]>([])
   const [newlyUploadedId, setNewlyUploadedId] = useState<string | null>(null)
-  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const deleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
   const uploadImageFile = useCallback(
@@ -146,26 +146,32 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
   useEffect(() => {
     const handleUndo = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && pendingDeletion) {
+      const latestPending = pendingDeletions[pendingDeletions.length - 1]
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && latestPending) {
         e.preventDefault()
-        if (deleteTimeoutRef.current) {
-          clearTimeout(deleteTimeoutRef.current)
-          deleteTimeoutRef.current = null
+
+        const timer = deleteTimeoutsRef.current.get(latestPending.id)
+        if (timer) {
+          clearTimeout(timer)
+          deleteTimeoutsRef.current.delete(latestPending.id)
         }
-        setItems((prev) => [pendingDeletion, ...prev])
-        setPendingDeletion(null)
-        console.log(`[UNDO] Restored item ${pendingDeletion.id}`)
+
+        setItems((prev) => [latestPending, ...prev])
+        setPendingDeletions((prev) => prev.filter((item) => item.id !== latestPending.id))
+        console.log(`[UNDO] Restored item ${latestPending.id}`)
       }
     }
     window.addEventListener("keydown", handleUndo)
     return () => window.removeEventListener("keydown", handleUndo)
-  }, [pendingDeletion])
+  }, [pendingDeletions])
 
   useEffect(() => {
     return () => {
-      if (deleteTimeoutRef.current) {
-        clearTimeout(deleteTimeoutRef.current)
+      for (const timer of deleteTimeoutsRef.current.values()) {
+        clearTimeout(timer)
       }
+      deleteTimeoutsRef.current.clear()
     }
   }, [])
 
@@ -300,23 +306,22 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
                 const idToDelete = selectedId
                 setSelectedId(null)
                 setItems((prev) => prev.filter((item) => item.id !== idToDelete))
-                setPendingDeletion(itemToDelete)
+                setPendingDeletions((prev) => [itemToDelete, ...prev])
 
-                if (deleteTimeoutRef.current) {
-                  clearTimeout(deleteTimeoutRef.current)
-                }
-
-                deleteTimeoutRef.current = setTimeout(async () => {
+                const timeout = setTimeout(async () => {
                   try {
                     await deleteItem(idToDelete, collectionName)
-                    setPendingDeletion(null)
+                    setPendingDeletions((prev) => prev.filter((item) => item.id !== idToDelete))
                   } catch (err) {
                     console.error("Failed to delete item:", err)
                     setItems((prev) => [itemToDelete, ...prev])
-                    setPendingDeletion(null)
+                    setPendingDeletions((prev) => prev.filter((item) => item.id !== idToDelete))
                   }
-                  deleteTimeoutRef.current = null
-                }, 5000)
+
+                  deleteTimeoutsRef.current.delete(idToDelete)
+                }, 3000)
+
+                deleteTimeoutsRef.current.set(idToDelete, timeout)
               }
             : undefined
         }
