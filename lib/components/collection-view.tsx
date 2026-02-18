@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import {
   addTweetToCollection,
+  addUrlToCollection,
   deleteItem,
   getUploadUrl,
   saveImageToCollection,
@@ -13,6 +14,30 @@ import { CollectionSidebar } from "@/lib/components/collection-sidebar"
 import { ImageGrid } from "@/lib/components/image-grid"
 import { getTweetData } from "@/lib/twitter"
 import type { ImageItem } from "@/lib/types"
+
+function getNormalizedHttpUrl(input: string): string | null {
+  const trimmed = input.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const maybeUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+
+  try {
+    const parsed = new URL(maybeUrl)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null
+    }
+
+    if (!parsed.hostname.includes(".")) {
+      return null
+    }
+
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
 
 type UploadingState = {
   type: "image" | "tweet" | "url"
@@ -160,15 +185,38 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
       const text = e.clipboardData?.getData("text")
       if (!text) return
 
-      const isTwitterUrl = /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(text)
-      if (!isTwitterUrl) return
+      const normalizedUrl = getNormalizedHttpUrl(text)
+      if (!normalizedUrl) return
+
+      const isTwitterUrl = /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(normalizedUrl)
+
+      if (!isTwitterUrl) {
+        const tempId = `temp-${Date.now()}`
+        setUploadingState({ type: "url", title: normalizedUrl.slice(0, 50), tempId })
+        setSelectedId(tempId)
+
+        try {
+          const newItem = await addUrlToCollection(collectionName, normalizedUrl)
+
+          setItems((prev) => [newItem, ...prev])
+          setSelectedId(newItem.id)
+          setNewlyUploadedId(newItem.id)
+          setUploadingState(null)
+          setAutoFocusComment(true)
+        } catch (err) {
+          console.error("Failed to fetch URL metadata:", err)
+          setUploadingState(null)
+          setSelectedId(null)
+        }
+        return
+      }
 
       const tempId = `temp-${Date.now()}`
-      setUploadingState({ type: "tweet", title: text.slice(0, 50), tempId })
+      setUploadingState({ type: "tweet", title: normalizedUrl.slice(0, 50), tempId })
       setSelectedId(tempId)
 
       try {
-        const tweet = await getTweetData(text)
+        const tweet = await getTweetData(normalizedUrl)
         if (!tweet) {
           console.log("Tweet not found")
           setUploadingState(null)
@@ -179,7 +227,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         const imageUrl = tweet.imageUrls[0] ?? tweet.author.profileImageUrl
         const newItem = await addTweetToCollection(
           collectionName,
-          text,
+          normalizedUrl,
           imageUrl,
           tweet.author.name,
           tweet.text.slice(0, 100)
