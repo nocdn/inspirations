@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import Image from "next/image"
 
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, LazyMotion, domAnimation, m, useReducedMotion } from "motion/react"
 
 import type { ImageItem } from "@/lib/types"
 
@@ -19,11 +19,15 @@ type ImageGridProps = {
 export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: ImageGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
-  const [topId, setTopId] = useState<string | null>(null)
+  const topIdRef = useRef<string | null>(null)
+  const [topIdState, setTopIdState] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [imageDimensions, setImageDimensions] = useState<
     Record<string, { width: number; height: number }>
   >({})
+  const translationsRef = useRef<Record<string, { x: number; y: number }>>({})
+  const [translationsTick, setTranslationsTick] = useState(0)
+  const prefersReducedMotion = useReducedMotion()
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -32,88 +36,114 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  useEffect(() => {
+  const handleZoom = useCallback(
+    (id: string | null) => {
+      if (id) {
+        topIdRef.current = id
+        setTopIdState(id)
+
+        const element = itemRefs.current.get(id)
+        if (element) {
+          const elementRect = element.getBoundingClientRect()
+          const viewportCenterX = window.innerWidth / 2
+          const viewportCenterY = window.innerHeight / 2
+          const elementCenterX = elementRect.left + elementRect.width / 2
+          const elementCenterY = elementRect.top + elementRect.height / 2
+          translationsRef.current = {
+            ...translationsRef.current,
+            [id]: {
+              x: viewportCenterX - elementCenterX,
+              y: viewportCenterY - elementCenterY,
+            },
+          }
+          setTranslationsTick((t) => t + 1)
+        }
+      } else {
+        translationsRef.current = {}
+        setTranslationsTick((t) => t + 1)
+      }
+      onZoom(id)
+    },
+    [onZoom]
+  )
+
+  const handleItemClick = useCallback(
+    (item: ImageItem) => {
+      if (zoomedId === item.id) {
+        handleZoom(null)
+      } else if (selectedId === item.id) {
+        handleZoom(item.id)
+      } else {
+        onSelect(item.id)
+      }
+    },
+    [zoomedId, selectedId, handleZoom, onSelect]
+  )
+
+  const handleBackdropClick = useCallback(() => {
     if (zoomedId) {
-      setTopId(zoomedId)
-    }
-  }, [zoomedId])
-
-  const getTranslation = useCallback((id: string) => {
-    const element = itemRefs.current.get(id)
-    if (!element) return { x: 0, y: 0 }
-
-    const elementRect = element.getBoundingClientRect()
-
-    const viewportCenterX = window.innerWidth / 2
-    const viewportCenterY = window.innerHeight / 2
-    const elementCenterX = elementRect.left + elementRect.width / 2
-    const elementCenterY = elementRect.top + elementRect.height / 2
-
-    return {
-      x: viewportCenterX - elementCenterX,
-      y: viewportCenterY - elementCenterY,
-    }
-  }, [])
-
-  const handleItemClick = (item: ImageItem) => {
-    if (zoomedId === item.id) {
-      onZoom(null)
-    } else if (selectedId === item.id) {
-      onZoom(item.id)
-    } else {
-      onSelect(item.id)
-    }
-  }
-
-  const handleBackdropClick = () => {
-    if (zoomedId) {
-      onZoom(null)
+      handleZoom(null)
       if (isMobile) {
         onSelect(null)
       }
     }
-  }
+  }, [zoomedId, isMobile, handleZoom, onSelect])
 
-  const handleItemBlur = (itemId: string, event: React.FocusEvent<HTMLButtonElement>) => {
-    if (!isMobile) return
+  const handleItemBlur = useCallback(
+    (itemId: string, event: React.FocusEvent<HTMLButtonElement>) => {
+      if (!isMobile) return
 
-    const nextFocused = event.relatedTarget
-    if (nextFocused instanceof Node && containerRef.current?.contains(nextFocused)) {
-      return
-    }
-
-    if (zoomedId === itemId || selectedId === itemId) {
-      onZoom(null)
-      onSelect(null)
-    }
-  }
-
-  const handleImageLoad = (id: string, event: React.SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth, naturalHeight } = event.currentTarget
-    if (!naturalWidth || !naturalHeight) return
-
-    setImageDimensions((prev) => {
-      const existing = prev[id]
-      if (existing && existing.width === naturalWidth && existing.height === naturalHeight) {
-        return prev
+      const nextFocused = event.relatedTarget
+      if (nextFocused instanceof Node && containerRef.current?.contains(nextFocused)) {
+        return
       }
 
-      return {
-        ...prev,
-        [id]: { width: naturalWidth, height: naturalHeight },
+      if (zoomedId === itemId || selectedId === itemId) {
+        handleZoom(null)
+        onSelect(null)
       }
-    })
-  }
+    },
+    [isMobile, zoomedId, selectedId, handleZoom, onSelect]
+  )
+
+  const handleImageLoad = useCallback(
+    (id: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+      const { naturalWidth, naturalHeight } = event.currentTarget
+      if (!naturalWidth || !naturalHeight) return
+
+      setImageDimensions((prev) => {
+        const existing = prev[id]
+        if (existing && existing.width === naturalWidth && existing.height === naturalHeight) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          [id]: { width: naturalWidth, height: naturalHeight },
+        }
+      })
+    },
+    []
+  )
+
+  const springTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 300, damping: 35 }
+
+  const fadeTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.3 }
+
+  void translationsTick
+  const currentTranslations = translationsRef.current
 
   return (
-    <>
+    <LazyMotion features={domAnimation}>
       <AnimatePresence>
         {zoomedId && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, backdropFilter: isMobile ? "blur(0px)" : "none" }}
             animate={{ opacity: 1, backdropFilter: isMobile ? "blur(1px)" : "none" }}
             exit={{ opacity: 0, backdropFilter: isMobile ? "blur(0px)" : "none" }}
-            transition={{ duration: 0.3 }}
+            transition={fadeTransition}
             onMouseDown={(e) => {
               e.stopPropagation()
               handleBackdropClick()
@@ -125,13 +155,14 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
       <div ref={containerRef} className="flex flex-col md:flex-row md:flex-wrap gap-6">
         {items.map((item, index) => {
           const isZoomed = zoomedId === item.id
-          const translation = isZoomed ? getTranslation(item.id) : { x: 0, y: 0 }
+          const translation = currentTranslations[item.id] ?? { x: 0, y: 0 }
           const dimensions = imageDimensions[item.id]
           const resolutionText = dimensions ? `${dimensions.width} × ${dimensions.height}` : "—"
+          const isTop = topIdState === item.id
 
           return (
-            <motion.button
-              layout
+            <m.button
+              layout={!prefersReducedMotion}
               key={item.id}
               ref={(el) => {
                 if (el) itemRefs.current.set(item.id, el)
@@ -140,8 +171,9 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
               onMouseDown={() => handleItemClick(item)}
               onBlur={(event) => handleItemBlur(item.id, event)}
               onAnimationComplete={() => {
-                if (!isZoomed && topId === item.id) {
-                  setTopId(null)
+                if (!isZoomed && topIdRef.current === item.id) {
+                  topIdRef.current = null
+                  setTopIdState(null)
                 }
               }}
               className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none motion-opacity-in-0 ${
@@ -150,14 +182,14 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   : selectedId && selectedId !== item.id
                     ? "opacity-40"
                     : ""
-              } ${topId === item.id ? "relative z-100" : "relative z-0"}`}
+              } ${isTop ? "relative z-100" : "relative z-0"}`}
               style={{ animationDelay: `${index * 0.02}s` }}
               animate={{
                 scale: isZoomed ? (isMobile ? 1.05 : 2.5) : 1,
-                x: translation.x,
-                y: translation.y,
+                x: isZoomed ? translation.x : 0,
+                y: isZoomed ? translation.y : 0,
               }}
-              transition={{ type: "spring", stiffness: 300, damping: 35 }}
+              transition={springTransition}
             >
               <div className="relative border-shadow">
                 <Image
@@ -169,12 +201,11 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   className="h-auto w-full md:w-auto md:max-h-[150px]"
                   unoptimized
                 />
-                <motion.div
+                <m.div
                   initial={false}
                   animate={{ opacity: isZoomed ? 1 : 0 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
                   style={{
-                    willChange: "opacity",
                     fontFamily: isMobile
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
                       : "SF Mono",
@@ -195,7 +226,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                       <div>{item.dateCreated}</div>
                     </div>
                   </div>
-                </motion.div>
+                </m.div>
               </div>
               <span
                 className="font-pp-supply-mono font-light text-[11px] text-muted-foreground/60 transition-opacity duration-100"
@@ -203,10 +234,10 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
               >
                 {(index + 1).toString().padStart(2, "0")}
               </span>
-            </motion.button>
+            </m.button>
           )
         })}
       </div>
-    </>
+    </LazyMotion>
   )
 }

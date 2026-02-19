@@ -41,6 +41,7 @@ const rows: Row[] = [
 // - Colours
 // - Logos
 
+
 export default function Table() {
   return (
     <div className="w-full max-w-[567px]">

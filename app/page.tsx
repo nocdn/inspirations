@@ -1,6 +1,12 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import Table from "./Table"
+
+export const metadata: Metadata = {
+  title: "inspirations",
+  description: "A collection of design inspirations from across the internet.",
+}
 
 export default function Home() {
   return (

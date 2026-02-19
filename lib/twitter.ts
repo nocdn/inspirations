@@ -35,7 +35,7 @@ interface TweetData {
   conversation_count: number
 }
 
-export interface ExtractedTweetData {
+interface ExtractedTweetData {
   text: string
   imageUrls: string[]
   videoUrls: string[]

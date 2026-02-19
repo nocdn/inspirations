@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
@@ -18,6 +19,14 @@ export async function generateStaticParams() {
 
 type PageProps = {
   params: Promise<{ slug: string }>
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params
+  return {
+    title: `${slug} — inspirations`,
+    description: `Design inspiration collection: ${slug}`,
+  }
 }
 
 export default async function CollectionPage({ params }: PageProps) {

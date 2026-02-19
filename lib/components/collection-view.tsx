@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useReducer, useRef } from "react"
 
 import {
   addTweetToCollection,
@@ -50,22 +50,145 @@ type CollectionViewProps = {
   items: ImageItem[]
 }
 
+type State = {
+  items: ImageItem[]
+  selectedId: string | null
+  zoomedId: string | null
+  autoFocusComment: boolean
+  uploadingState: UploadingState
+  pendingDeletions: ImageItem[]
+  newlyUploadedId: string | null
+}
+
+type Action =
+  | { type: "SELECT"; id: string | null }
+  | { type: "ZOOM"; id: string | null }
+  | { type: "START_UPLOAD"; uploadingState: UploadingState; tempId: string }
+  | { type: "UPLOAD_SUCCESS"; item: ImageItem }
+  | { type: "UPLOAD_FAIL" }
+  | { type: "CANCEL_UPLOAD" }
+  | { type: "DELETE_ITEM"; item: ImageItem }
+  | { type: "UNDO_DELETE"; item: ImageItem }
+  | { type: "CONFIRM_DELETE"; id: string }
+  | { type: "RESTORE_ITEM"; item: ImageItem; id: string }
+  | { type: "UPDATE_COMMENT"; id: string; comment: string }
+  | { type: "AUTO_FOCUS_HANDLED" }
+  | { type: "COMMENT_DONE"; id: string }
+  | { type: "COMMENT_CANCEL" }
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "SELECT":
+      return { ...state, selectedId: action.id }
+    case "ZOOM":
+      return { ...state, zoomedId: action.id }
+    case "START_UPLOAD":
+      return {
+        ...state,
+        uploadingState: action.uploadingState,
+        selectedId: action.tempId,
+      }
+    case "UPLOAD_SUCCESS":
+      return {
+        ...state,
+        items: [action.item, ...state.items],
+        selectedId: action.item.id,
+        newlyUploadedId: action.item.id,
+        uploadingState: null,
+        autoFocusComment: true,
+      }
+    case "UPLOAD_FAIL":
+      return {
+        ...state,
+        uploadingState: null,
+        selectedId: null,
+      }
+    case "CANCEL_UPLOAD":
+      return {
+        ...state,
+        uploadingState: null,
+        selectedId: null,
+      }
+    case "DELETE_ITEM":
+      return {
+        ...state,
+        selectedId: null,
+        items: state.items.filter((item) => item.id !== action.item.id),
+        pendingDeletions: [action.item, ...state.pendingDeletions],
+      }
+    case "UNDO_DELETE":
+      return {
+        ...state,
+        items: [action.item, ...state.items],
+        pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.item.id),
+      }
+    case "CONFIRM_DELETE":
+      return {
+        ...state,
+        pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.id),
+      }
+    case "RESTORE_ITEM":
+      return {
+        ...state,
+        items: [action.item, ...state.items],
+        pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.id),
+      }
+    case "UPDATE_COMMENT":
+      return {
+        ...state,
+        items: state.items.map((item) =>
+          item.id === action.id ? { ...item, comment: action.comment } : item
+        ),
+      }
+    case "AUTO_FOCUS_HANDLED":
+      return { ...state, autoFocusComment: false }
+    case "COMMENT_DONE":
+      return {
+        ...state,
+        newlyUploadedId: state.newlyUploadedId === action.id ? null : state.newlyUploadedId,
+        selectedId:
+          state.newlyUploadedId === action.id ? null : state.selectedId,
+      }
+    case "COMMENT_CANCEL":
+      return {
+        ...state,
+        newlyUploadedId:
+          state.newlyUploadedId && state.selectedId === state.newlyUploadedId
+            ? null
+            : state.newlyUploadedId,
+        selectedId:
+          state.newlyUploadedId && state.selectedId === state.newlyUploadedId
+            ? null
+            : state.selectedId,
+      }
+    default:
+      return state
+  }
+}
+
 export function CollectionView({ collectionName, items: initialItems }: CollectionViewProps) {
-  const [items, setItems] = useState<ImageItem[]>(initialItems)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [zoomedId, setZoomedId] = useState<string | null>(null)
-  const [autoFocusComment, setAutoFocusComment] = useState(false)
-  const [uploadingState, setUploadingState] = useState<UploadingState>(null)
-  const [pendingDeletions, setPendingDeletions] = useState<ImageItem[]>([])
-  const [newlyUploadedId, setNewlyUploadedId] = useState<string | null>(null)
+  const [state, dispatch] = useReducer(reducer, {
+    items: initialItems,
+    selectedId: null,
+    zoomedId: null,
+    autoFocusComment: false,
+    uploadingState: null,
+    pendingDeletions: [],
+    newlyUploadedId: null,
+  })
+
+  const { items, selectedId, zoomedId, autoFocusComment, uploadingState, pendingDeletions } = state
   const deleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
   const uploadImageFile = useCallback(
     async (file: File) => {
       const tempId = `temp-${Date.now()}`
-      setUploadingState({ type: "image", title: file.name, tempId })
-      setSelectedId(tempId)
+      dispatch({
+        type: "START_UPLOAD",
+        uploadingState: { type: "image", title: file.name, tempId },
+        tempId,
+      })
 
       try {
         const { uploadUrl, publicUrl } = await getUploadUrl(file.name, file.type)
@@ -82,32 +205,27 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         })
 
         if (!uploadResponse.ok) {
-          throw new Error(`Upload failed: ${uploadResponse.status}`)
+          console.error(`Upload failed: ${uploadResponse.status}`)
+          dispatch({ type: "UPLOAD_FAIL" })
+          return
         }
 
         const newItem = await saveImageToCollection(collectionName, publicUrl, file.name)
-
-        setItems((prev) => [newItem, ...prev])
-        setSelectedId(newItem.id)
-        setNewlyUploadedId(newItem.id)
-        setUploadingState(null)
-        setAutoFocusComment(true)
+        dispatch({ type: "UPLOAD_SUCCESS", item: newItem })
       } catch (err) {
         console.error("Failed to upload image:", err)
-        setUploadingState(null)
-        setSelectedId(null)
+        dispatch({ type: "UPLOAD_FAIL" })
       }
     },
     [collectionName]
   )
 
   const handleCommentChange = async (id: string, comment: string) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, comment } : item)))
+    dispatch({ type: "UPDATE_COMMENT", id, comment })
 
-    const wasNewlyUploaded = newlyUploadedId === id
+    const wasNewlyUploaded = state.newlyUploadedId === id
     if (wasNewlyUploaded) {
-      setNewlyUploadedId(null)
-      setSelectedId(null)
+      dispatch({ type: "COMMENT_DONE", id })
     }
 
     try {
@@ -116,27 +234,22 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
       console.error("Failed to save comment:", err)
       const originalItem = initialItems.find((item) => item.id === id)
       if (originalItem) {
-        setItems((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, comment: originalItem.comment } : item))
-        )
+        dispatch({ type: "UPDATE_COMMENT", id, comment: originalItem.comment ?? "" })
       }
     }
   }
 
   const handleCommentCancel = () => {
-    if (newlyUploadedId && selectedId === newlyUploadedId) {
-      setNewlyUploadedId(null)
-      setSelectedId(null)
-    }
+    dispatch({ type: "COMMENT_CANCEL" })
   }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !(e.target instanceof HTMLInputElement)) {
         if (zoomedId) {
-          setZoomedId(null)
+          dispatch({ type: "ZOOM", id: null })
         } else {
-          setSelectedId(null)
+          dispatch({ type: "SELECT", id: null })
         }
       }
     }
@@ -157,8 +270,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
           deleteTimeoutsRef.current.delete(latestPending.id)
         }
 
-        setItems((prev) => [latestPending, ...prev])
-        setPendingDeletions((prev) => prev.filter((item) => item.id !== latestPending.id))
+        dispatch({ type: "UNDO_DELETE", item: latestPending })
         console.log(`[UNDO] Restored item ${latestPending.id}`)
       }
     }
@@ -198,39 +310,39 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
       if (!isTwitterUrl) {
         const tempId = `temp-${Date.now()}`
-        setUploadingState({ type: "url", title: normalizedUrl.slice(0, 50), tempId })
-        setSelectedId(tempId)
+        dispatch({
+          type: "START_UPLOAD",
+          uploadingState: { type: "url", title: normalizedUrl.slice(0, 50), tempId },
+          tempId,
+        })
 
         try {
           const newItem = await addUrlToCollection(collectionName, normalizedUrl)
-
-          setItems((prev) => [newItem, ...prev])
-          setSelectedId(newItem.id)
-          setNewlyUploadedId(newItem.id)
-          setUploadingState(null)
-          setAutoFocusComment(true)
+          dispatch({ type: "UPLOAD_SUCCESS", item: newItem })
         } catch (err) {
           console.error("Failed to fetch URL metadata:", err)
-          setUploadingState(null)
-          setSelectedId(null)
+          dispatch({ type: "UPLOAD_FAIL" })
         }
         return
       }
 
       const tempId = `temp-${Date.now()}`
-      setUploadingState({ type: "tweet", title: normalizedUrl.slice(0, 50), tempId })
-      setSelectedId(tempId)
+      dispatch({
+        type: "START_UPLOAD",
+        uploadingState: { type: "tweet", title: normalizedUrl.slice(0, 50), tempId },
+        tempId,
+      })
 
       try {
         const tweet = await getTweetData(normalizedUrl)
         if (!tweet) {
           console.log("Tweet not found")
-          setUploadingState(null)
-          setSelectedId(null)
+          dispatch({ type: "UPLOAD_FAIL" })
           return
         }
 
-        const imageUrl = tweet.imageUrls[0] ?? tweet.author.profileImageUrl
+        const firstImage = tweet.imageUrls[0]
+        const imageUrl = firstImage !== undefined ? firstImage : tweet.author.profileImageUrl
         const newItem = await addTweetToCollection(
           collectionName,
           normalizedUrl,
@@ -238,16 +350,10 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
           tweet.author.name,
           tweet.text.slice(0, 100)
         )
-
-        setItems((prev) => [newItem, ...prev])
-        setSelectedId(newItem.id)
-        setNewlyUploadedId(newItem.id)
-        setUploadingState(null)
-        setAutoFocusComment(true)
+        dispatch({ type: "UPLOAD_SUCCESS", item: newItem })
       } catch (err) {
         console.error("Failed to fetch tweet:", err)
-        setUploadingState(null)
-        setSelectedId(null)
+        dispatch({ type: "UPLOAD_FAIL" })
       }
     }
 
@@ -282,8 +388,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   }, [uploadingState, uploadImageFile])
 
   const handleCancelUpload = () => {
-    setUploadingState(null)
-    setSelectedId(null)
+    dispatch({ type: "CANCEL_UPLOAD" })
   }
 
   return (
@@ -304,18 +409,15 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
                 if (!itemToDelete) return
 
                 const idToDelete = selectedId
-                setSelectedId(null)
-                setItems((prev) => prev.filter((item) => item.id !== idToDelete))
-                setPendingDeletions((prev) => [itemToDelete, ...prev])
+                dispatch({ type: "DELETE_ITEM", item: itemToDelete })
 
                 const timeout = setTimeout(async () => {
                   try {
                     await deleteItem(idToDelete, collectionName)
-                    setPendingDeletions((prev) => prev.filter((item) => item.id !== idToDelete))
+                    dispatch({ type: "CONFIRM_DELETE", id: idToDelete })
                   } catch (err) {
                     console.error("Failed to delete item:", err)
-                    setItems((prev) => [itemToDelete, ...prev])
-                    setPendingDeletions((prev) => prev.filter((item) => item.id !== idToDelete))
+                    dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete })
                   }
 
                   deleteTimeoutsRef.current.delete(idToDelete)
@@ -327,15 +429,15 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         }
         onCancelUpload={uploadingState ? handleCancelUpload : undefined}
         autoFocusComment={autoFocusComment}
-        onAutoFocusHandled={() => setAutoFocusComment(false)}
+        onAutoFocusHandled={() => dispatch({ type: "AUTO_FOCUS_HANDLED" })}
       />
       <div className="flex-1">
         <ImageGrid
           items={items}
           selectedId={selectedId}
           zoomedId={zoomedId}
-          onSelect={setSelectedId}
-          onZoom={setZoomedId}
+          onSelect={(id) => dispatch({ type: "SELECT", id })}
+          onZoom={(id) => dispatch({ type: "ZOOM", id })}
         />
       </div>
     </div>

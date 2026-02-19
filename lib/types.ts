@@ -5,7 +5,3 @@ export type ImageItem = {
   comment?: string
   dateCreated: string
 }
-
-export type ImageItemWithEdit = ImageItem & {
-  onCommentChange?: (comment: string) => void
-}
