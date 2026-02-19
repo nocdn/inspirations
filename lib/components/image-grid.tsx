@@ -68,6 +68,23 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
   const handleBackdropClick = () => {
     if (zoomedId) {
       onZoom(null)
+      if (isMobile) {
+        onSelect(null)
+      }
+    }
+  }
+
+  const handleItemBlur = (itemId: string, event: React.FocusEvent<HTMLButtonElement>) => {
+    if (!isMobile) return
+
+    const nextFocused = event.relatedTarget
+    if (nextFocused instanceof Node && containerRef.current?.contains(nextFocused)) {
+      return
+    }
+
+    if (zoomedId === itemId || selectedId === itemId) {
+      onZoom(null)
+      onSelect(null)
     }
   }
 
@@ -121,6 +138,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                 else itemRefs.current.delete(item.id)
               }}
               onMouseDown={() => handleItemClick(item)}
+              onBlur={(event) => handleItemBlur(item.id, event)}
               onAnimationComplete={() => {
                 if (!isZoomed && topId === item.id) {
                   setTopId(null)
@@ -180,7 +198,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                 </motion.div>
               </div>
               <span
-                className="font-pp-supply-mono font-light text-[9px] text-muted-foreground/60 transition-opacity duration-100"
+                className="font-pp-supply-mono font-light text-[11px] text-muted-foreground/60 transition-opacity duration-100"
                 style={{ opacity: zoomedId ? 0 : 1 }}
               >
                 {(index + 1).toString().padStart(2, "0")}
