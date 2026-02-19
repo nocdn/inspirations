@@ -124,6 +124,33 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
     }
   }, [selectedId, zoomedId, hoveredId])
 
+  useEffect(() => {
+    if (!zoomedId) return
+
+    const videoEl = videoRefs.current.get(zoomedId)
+    if (!videoEl) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === " ") {
+        e.preventDefault()
+        if (videoEl.paused) {
+          videoEl.play().catch(() => {})
+        } else {
+          videoEl.pause()
+        }
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        videoEl.currentTime = Math.max(0, videoEl.currentTime - 2)
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault()
+        videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + 2)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [zoomedId])
+
   const handleImageLoad = useCallback(
     (id: string, event: React.SyntheticEvent<HTMLImageElement>) => {
       const { naturalWidth, naturalHeight } = event.currentTarget
@@ -226,11 +253,10 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                     }}
                     src={item.videoUrl}
                     poster={item.imageUrl}
-                    controls={isZoomed}
                     playsInline
                     preload="metadata"
                     muted
-                    className={`h-auto w-full md:w-auto md:max-h-[150px]${isZoomed ? " video-zoomed-controls" : ""}`}
+                    className="h-auto w-full md:w-auto md:max-h-[150px]"
                     onLoadedMetadata={(event) => {
                       const { videoWidth, videoHeight } = event.currentTarget
                       if (!videoWidth || !videoHeight) return

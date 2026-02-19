@@ -14,7 +14,6 @@
     "@aws-sdk/s3-request-presigner": "^3.980.0",
     "@neondatabase/serverless": "^1.0.2",
     "@upstash/redis": "^1.36.1",
-    "cambio": "^1.1.5",
     "class-variance-authority": "latest",
     "clsx": "latest",
     "color.js": "^1.2.0",
@@ -26,7 +25,6 @@
     "open-graph-scraper": "^6.11.0",
     "react": "latest",
     "react-dom": "latest",
-    "shiki": "latest",
     "sonner": "^2.0.7",
     "tailwind-merge": "latest"
   },
