@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { Loader } from "lucide-react"
 import {
@@ -86,6 +86,11 @@ export function CollectionSidebar({
   const prevSelectedIdRef = useRef<string | undefined>(selectedItem?.id)
   const autoFocusHandledIdRef = useRef<string | null>(null)
 
+  useLayoutEffect(() => {
+    if (!isEditingComment) return
+    inputRef.current?.focus()
+  }, [isEditingComment, selectedItem?.id])
+
   useEffect(() => {
     if (prevSelectedIdRef.current !== selectedItem?.id) {
       prevSelectedIdRef.current = selectedItem?.id
@@ -102,18 +107,12 @@ export function CollectionSidebar({
     autoFocusHandledIdRef.current = selectedItem.id
     setEditedComment(selectedItem.comment || "")
     setIsEditingComment(true)
-    requestAnimationFrame(() => {
-      inputRef.current?.focus()
-    })
     onAutoFocusHandled?.()
   }, [autoFocusComment, selectedItem?.id])
 
   const startEditing = (comment: string) => {
     setEditedComment(comment)
     setIsEditingComment(true)
-    requestAnimationFrame(() => {
-      inputRef.current?.focus()
-    })
   }
 
   const handleCommentClick = (e: React.MouseEvent) => {

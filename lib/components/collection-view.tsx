@@ -149,8 +149,7 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         newlyUploadedId: state.newlyUploadedId === action.id ? null : state.newlyUploadedId,
-        selectedId:
-          state.newlyUploadedId === action.id ? null : state.selectedId,
+        selectedId: state.newlyUploadedId === action.id ? null : state.selectedId,
       }
     case "COMMENT_CANCEL":
       return {
