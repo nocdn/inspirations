@@ -61,7 +61,7 @@ type CollectionSidebarProps = {
   uploadingState?: UploadingState
   onCommentChange?: (comment: string) => void
   onCommentCancel?: () => void
-  onDelete?: () => void
+  onDelete?: (immediate?: boolean) => void
   onCancelUpload?: () => void
   autoFocusComment?: boolean
   onAutoFocusHandled?: () => void
@@ -116,6 +116,21 @@ export function CollectionSidebar({
   }
 
   const handleCommentClick = (e: React.MouseEvent) => {
+    // IMPORTANT: Keep `preventDefault()` here.
+    // We intentionally open comment editing from `onMouseDown` (project-wide UX choice
+    // for snappier interactions). Without preventing the default mousedown behavior,
+    // the browser performs an immediate focus transition that can trigger the input's
+    // `onBlur` right after it mounts. In this component, blur saves + exits edit mode,
+    // so removing this line causes the classic "input flashes for a split second and
+    // collapses back" bug for both empty and existing comments.
+    //
+    // Symptom if removed/regressed:
+    // 1) Click "Add comment..." or an existing comment.
+    // 2) Input appears briefly, then instantly reverts to read mode.
+    //
+    // If this area is refactored, preserve the invariant:
+    // entering edit mode must not trigger an immediate blur in the same pointer cycle.
+    e.preventDefault()
     e.stopPropagation()
     startEditing(selectedItem?.comment || "")
   }
@@ -123,6 +138,10 @@ export function CollectionSidebar({
   const handleCommentSave = () => {
     onCommentChange?.(editedComment)
     setIsEditingComment(false)
+  }
+
+  const handleDeleteMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    onDelete?.(e.shiftKey)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -217,7 +236,7 @@ export function CollectionSidebar({
                 <p className="text-[12px] text-muted-foreground/50">{selectedItem.dateCreated}</p>
                 <button
                   type="button"
-                  onMouseDown={onDelete}
+                  onMouseDown={handleDeleteMouseDown}
                   className="text-[12px] text-muted-foreground/50 text-left bg-transparent border-none p-0 w-fit hover:underline hover:text-red-400/70 transition-colors duration-150 cursor-pointer"
                   aria-label="Delete item"
                 >

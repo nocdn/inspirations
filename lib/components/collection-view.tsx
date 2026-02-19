@@ -68,6 +68,7 @@ type Action =
   | { type: "UPLOAD_FAIL" }
   | { type: "CANCEL_UPLOAD" }
   | { type: "DELETE_ITEM"; item: ImageItem }
+  | { type: "DELETE_ITEM_IMMEDIATE"; id: string }
   | { type: "UNDO_DELETE"; item: ImageItem }
   | { type: "CONFIRM_DELETE"; id: string }
   | { type: "RESTORE_ITEM"; item: ImageItem; id: string }
@@ -115,6 +116,12 @@ function reducer(state: State, action: Action): State {
         selectedId: null,
         items: state.items.filter((item) => item.id !== action.item.id),
         pendingDeletions: [action.item, ...state.pendingDeletions],
+      }
+    case "DELETE_ITEM_IMMEDIATE":
+      return {
+        ...state,
+        selectedId: null,
+        items: state.items.filter((item) => item.id !== action.id),
       }
     case "UNDO_DELETE":
       return {
@@ -406,11 +413,27 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         onCommentCancel={handleCommentCancel}
         onDelete={
           selectedId && !uploadingState
-            ? () => {
+            ? (immediate) => {
                 const itemToDelete = items.find((item) => item.id === selectedId)
                 if (!itemToDelete) return
 
                 const idToDelete = selectedId
+
+                if (immediate) {
+                  dispatch({ type: "DELETE_ITEM_IMMEDIATE", id: idToDelete })
+
+                  void (async () => {
+                    try {
+                      await deleteItem(idToDelete, collectionName)
+                    } catch (err) {
+                      console.error("Failed to delete item:", err)
+                      dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete })
+                    }
+                  })()
+
+                  return
+                }
+
                 dispatch({ type: "DELETE_ITEM", item: itemToDelete })
 
                 const timeout = setTimeout(async () => {

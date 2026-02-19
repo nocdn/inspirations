@@ -153,6 +153,20 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
   return result
 }
 
+const BROWSER_HEADERS: Record<string, string> = {
+  "user-agent": USER_AGENT,
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "accept-language": "en-US,en;q=0.9",
+  "accept-encoding": "gzip, deflate, br",
+  "cache-control": "no-cache",
+  pragma: "no-cache",
+  "sec-fetch-dest": "document",
+  "sec-fetch-mode": "navigate",
+  "sec-fetch-site": "none",
+  "sec-fetch-user": "?1",
+  "upgrade-insecure-requests": "1",
+}
+
 async function uploadFallbackOgImageToR2(pageUrl: URL) {
   const fallbackEndpointBase = process.env.FALLBACK_METADATA_ENDPOINT_URL?.trim()
   if (!fallbackEndpointBase) {
@@ -327,9 +341,7 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
       url: parsedUrl.toString(),
       timeout: 10,
       fetchOptions: {
-        headers: {
-          "user-agent": USER_AGENT,
-        },
+        headers: BROWSER_HEADERS,
       },
     })
 
