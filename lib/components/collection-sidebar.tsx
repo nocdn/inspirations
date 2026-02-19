@@ -81,7 +81,7 @@ export function CollectionSidebar({
 }: CollectionSidebarProps) {
   const [isEditingComment, setIsEditingComment] = useState(false)
   const [editedComment, setEditedComment] = useState("")
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const prefersReducedMotion = useReducedMotion()
   const prevSelectedIdRef = useRef<string | undefined>(selectedItem?.id)
   const autoFocusHandledIdRef = useRef<string | null>(null)
@@ -144,12 +144,13 @@ export function CollectionSidebar({
     onDelete?.(e.shiftKey)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
       handleCommentSave()
     } else if (e.key === "Escape") {
+      e.stopPropagation()
       setIsEditingComment(false)
-      onCommentCancel?.()
     }
   }
 
@@ -202,17 +203,19 @@ export function CollectionSidebar({
               <div className="flex flex-col gap-2">
                 <h2 className="text-[16px] font-medium">{selectedItem.title}</h2>
                 {isEditingComment ? (
-                  <input
+                  <textarea
                     ref={inputRef}
-                    type="text"
                     value={editedComment}
                     onChange={(e) => setEditedComment(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    onBlur={handleCommentSave}
+                    onBlur={() => {
+                      setIsEditingComment(false)
+                      onCommentCancel?.()
+                    }}
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck="false"
-                    className="text-[14px] text-muted-foreground/70 bg-transparent border-none outline-none p-0 m-0 w-full"
+                    className="text-[14px] text-foreground bg-transparent border-none outline-none p-0 m-0 w-full resize-none [field-sizing:content]"
                   />
                 ) : selectedItem.comment ? (
                   <button

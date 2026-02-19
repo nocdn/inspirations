@@ -265,7 +265,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !(e.target instanceof HTMLInputElement)) {
+      if (e.key === "Escape" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         if (zoomedId) {
           dispatch({ type: "ZOOM", id: null })
         } else {
