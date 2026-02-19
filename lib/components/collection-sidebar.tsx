@@ -1,9 +1,16 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Loader } from "lucide-react"
-import { AnimatePresence, LazyMotion, type Variants, domAnimation, m, useReducedMotion } from "motion/react"
+import {
+  AnimatePresence,
+  LazyMotion,
+  type Variants,
+  domAnimation,
+  m,
+  useReducedMotion,
+} from "motion/react"
 
 import type { ImageItem } from "@/lib/types"
 
@@ -77,19 +84,29 @@ export function CollectionSidebar({
   const inputRef = useRef<HTMLInputElement>(null)
   const prefersReducedMotion = useReducedMotion()
   const prevSelectedIdRef = useRef<string | undefined>(selectedItem?.id)
+  const autoFocusHandledIdRef = useRef<string | null>(null)
 
-  if (prevSelectedIdRef.current !== selectedItem?.id) {
-    prevSelectedIdRef.current = selectedItem?.id
-    if (isEditingComment) {
-      setIsEditingComment(false)
+  useEffect(() => {
+    if (prevSelectedIdRef.current !== selectedItem?.id) {
+      prevSelectedIdRef.current = selectedItem?.id
+      if (isEditingComment) {
+        setIsEditingComment(false)
+      }
     }
-  }
+  }, [selectedItem?.id, isEditingComment])
 
-  if (autoFocusComment && selectedItem) {
+  useEffect(() => {
+    if (!selectedItem || !autoFocusComment) return
+    if (autoFocusHandledIdRef.current === selectedItem.id) return
+
+    autoFocusHandledIdRef.current = selectedItem.id
     setEditedComment(selectedItem.comment || "")
     setIsEditingComment(true)
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
     onAutoFocusHandled?.()
-  }
+  }, [autoFocusComment, selectedItem?.id])
 
   const startEditing = (comment: string) => {
     setEditedComment(comment)

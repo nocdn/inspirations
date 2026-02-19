@@ -14,6 +14,10 @@ import {
   uploadBufferToR2,
 } from "@/lib/r2"
 
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+const MAX_OG_IMAGE_BYTES = 15 * 1024 * 1024
+
 function isPrivateIPv4(hostname: string) {
   const parts = hostname.split(".").map(Number)
   if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
@@ -104,8 +108,7 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
   console.log(`[OG] Downloading image: ${imageUrl}`)
   const response = await fetch(imageUrl, {
     headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      "user-agent": USER_AGENT,
     },
   })
 
@@ -116,10 +119,11 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
 
   const contentLengthHeader = response.headers.get("content-length")
   const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : NaN
-  const maxBytes = 15 * 1024 * 1024
-  console.log(`[OG] Response status=${response.status}, content-type=${response.headers.get("content-type")}, content-length=${contentLengthHeader ?? "unknown"}`)
-  if (!Number.isNaN(contentLength) && contentLength > maxBytes) {
-    console.error(`[OG] Image too large: ${contentLength} bytes (max ${maxBytes})`)
+  console.log(
+    `[OG] Response status=${response.status}, content-type=${response.headers.get("content-type")}, content-length=${contentLengthHeader ?? "unknown"}`
+  )
+  if (!Number.isNaN(contentLength) && contentLength > MAX_OG_IMAGE_BYTES) {
+    console.error(`[OG] Image too large: ${contentLength} bytes (max ${MAX_OG_IMAGE_BYTES})`)
     throw new Error("OG image is too large to cache")
   }
 
@@ -132,7 +136,7 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
 
   const arrayBuffer = await response.arrayBuffer()
   console.log(`[OG] Downloaded ${arrayBuffer.byteLength} bytes`)
-  if (arrayBuffer.byteLength > maxBytes) {
+  if (arrayBuffer.byteLength > MAX_OG_IMAGE_BYTES) {
     console.error(`[OG] Image body too large: ${arrayBuffer.byteLength} bytes`)
     throw new Error("OG image is too large to cache")
   }
@@ -140,9 +144,70 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
   const ext = getExtensionFromContentType(contentTypeHeader)
   const filename = `og-${sourceHostname}.${ext}`
   console.log(`[OG] Uploading to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`)
-  const result = await uploadBufferToR2(new Uint8Array(arrayBuffer), filename, normalizedContentType)
+  const result = await uploadBufferToR2(
+    new Uint8Array(arrayBuffer),
+    filename,
+    normalizedContentType
+  )
   console.log(`[OG] Upload complete — public URL: ${result.publicUrl}`)
   return result
+}
+
+async function uploadFallbackOgImageToR2(pageUrl: URL) {
+  const fallbackEndpointBase = process.env.FALLBACK_METADATA_ENDPOINT_URL?.trim()
+  if (!fallbackEndpointBase) {
+    throw new Error("Fallback metadata endpoint is not configured")
+  }
+
+  const fallbackEndpoint = new URL("/og", fallbackEndpointBase)
+  console.log(
+    `[OG] Falling back to metadata service for image extraction: ${fallbackEndpoint.toString()}`
+  )
+
+  const response = await fetch(fallbackEndpoint.toString(), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "image/*",
+      "user-agent": USER_AGENT,
+    },
+    body: JSON.stringify({
+      url: pageUrl.toString(),
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "")
+    console.error(
+      `[OG] Fallback metadata endpoint failed — HTTP ${response.status}: ${errorBody.slice(0, 200)}`
+    )
+    throw new Error(`Fallback metadata endpoint failed (${response.status})`)
+  }
+
+  const contentTypeHeader = response.headers.get("content-type")
+  const normalizedContentType = contentTypeHeader?.toLowerCase().split(";")[0].trim()
+  if (normalizedContentType && !normalizedContentType.startsWith("image/")) {
+    const bodyPreview = await response.text().catch(() => "")
+    console.error(
+      `[OG] Fallback metadata endpoint returned non-image content-type: ${normalizedContentType} (${bodyPreview.slice(0, 200)})`
+    )
+    throw new Error("Fallback metadata endpoint did not return an image")
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  if (!arrayBuffer.byteLength) {
+    throw new Error("Fallback metadata endpoint returned an empty image")
+  }
+  if (arrayBuffer.byteLength > MAX_OG_IMAGE_BYTES) {
+    throw new Error("Fallback OG image is too large to cache")
+  }
+
+  const ext = getExtensionFromContentType(contentTypeHeader)
+  const filename = `og-${pageUrl.hostname}-fallback.${ext}`
+  console.log(
+    `[OG] Uploading fallback image to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`
+  )
+  return uploadBufferToR2(new Uint8Array(arrayBuffer), filename, normalizedContentType)
 }
 
 function getFirstImageUrl(result: {
@@ -150,7 +215,9 @@ function getFirstImageUrl(result: {
   twitterImage?: Array<{ url: string }>
   favicon?: string
 }) {
-  console.log(`[OG] Searching for image — ogImage: ${JSON.stringify(result.ogImage)}, twitterImage: ${JSON.stringify(result.twitterImage)}, favicon: ${result.favicon ?? "none"}`)
+  console.log(
+    `[OG] Searching for image — ogImage: ${JSON.stringify(result.ogImage)}, twitterImage: ${JSON.stringify(result.twitterImage)}, favicon: ${result.favicon ?? "none"}`
+  )
 
   const imageFromOg = result.ogImage?.find((image) => typeof image.url === "string" && image.url)
   if (imageFromOg?.url) {
@@ -254,59 +321,81 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
   const parsedUrl = normalizeHttpUrl(inputUrl)
   console.log(`[OG] Starting OG extraction for: ${parsedUrl.toString()}`)
 
-  let response
+  let metadataResult: Awaited<ReturnType<typeof ogs>>["result"] | undefined
   try {
-    response = await ogs({
+    const response = await ogs({
       url: parsedUrl.toString(),
       timeout: 10,
       fetchOptions: {
         headers: {
-          "user-agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+          "user-agent": USER_AGENT,
         },
       },
     })
+
+    if (response.error) {
+      console.error(
+        `[OG] Metadata extraction failed for ${parsedUrl.toString()}: ${response.result.error}`
+      )
+    } else {
+      metadataResult = response.result
+      console.log(
+        `[OG] Metadata extracted — title: "${metadataResult.ogTitle ?? "none"}", description: "${metadataResult.ogDescription ?? "none"}", site: "${metadataResult.ogSiteName ?? "none"}"`
+      )
+    }
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : typeof err === "object" ? JSON.stringify(err) : String(err)
+      err instanceof Error
+        ? err.message
+        : typeof err === "object"
+          ? JSON.stringify(err)
+          : String(err)
     console.error(`[OG] Metadata extraction failed for ${parsedUrl.toString()}: ${message}`)
-    throw new Error("Could not extract metadata from URL")
   }
 
-  if (response.error) {
-    console.error(`[OG] Metadata extraction failed for ${parsedUrl.toString()}: ${response.result.error}`)
-    throw new Error(response.result.error || "Could not extract metadata from URL")
+  let uploadedOgImage
+  try {
+    const image = metadataResult ? getFirstImageUrl(metadataResult) : undefined
+    if (!image) {
+      throw new Error("No preview image found in metadata")
+    }
+
+    const resolvedImageUrl = normalizeHttpUrlFromBase(image, parsedUrl)
+    console.log(`[OG] Resolved image URL: ${resolvedImageUrl.toString()}`)
+    uploadedOgImage = await uploadRemoteImageToR2(resolvedImageUrl.toString(), parsedUrl.hostname)
+  } catch (primaryImageError) {
+    const message =
+      primaryImageError instanceof Error ? primaryImageError.message : String(primaryImageError)
+    console.error(`[OG] Primary image extraction failed for ${parsedUrl.toString()}: ${message}`)
+
+    try {
+      uploadedOgImage = await uploadFallbackOgImageToR2(parsedUrl)
+    } catch (fallbackError) {
+      const fallbackMessage =
+        fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+      console.error(
+        `[OG] Fallback image extraction failed for ${parsedUrl.toString()}: ${fallbackMessage}`
+      )
+      throw new Error("No preview image was found for this URL")
+    }
   }
-
-  console.log(`[OG] Metadata extracted — title: "${response.result.ogTitle ?? "none"}", description: "${response.result.ogDescription ?? "none"}", site: "${response.result.ogSiteName ?? "none"}"`)
-
-  const image = getFirstImageUrl(response.result)
-  if (!image) {
-    console.error(`[OG] No preview image found for ${parsedUrl.toString()} — page has no og:image, twitter:image, or favicon`)
-    throw new Error("No preview image was found for this URL")
-  }
-
-  const resolvedImageUrl = normalizeHttpUrlFromBase(image, parsedUrl)
-  console.log(`[OG] Resolved image URL: ${resolvedImageUrl.toString()}`)
-  const uploadedOgImage = await uploadRemoteImageToR2(
-    resolvedImageUrl.toString(),
-    parsedUrl.hostname
-  )
 
   const title =
-    response.result.ogTitle ||
-    response.result.twitterTitle ||
-    response.result.dcTitle ||
-    response.result.ogSiteName ||
+    metadataResult?.ogTitle ||
+    metadataResult?.twitterTitle ||
+    metadataResult?.dcTitle ||
+    metadataResult?.ogSiteName ||
     parsedUrl.hostname
 
   const description =
-    response.result.ogDescription ||
-    response.result.twitterDescription ||
-    response.result.dcDescription ||
+    metadataResult?.ogDescription ||
+    metadataResult?.twitterDescription ||
+    metadataResult?.dcDescription ||
     ""
 
-  console.log(`[OG] Extraction complete for ${parsedUrl.hostname} — title: "${title}", image: ${uploadedOgImage.publicUrl}`)
+  console.log(
+    `[OG] Extraction complete for ${parsedUrl.hostname} — title: "${title}", image: ${uploadedOgImage.publicUrl}`
+  )
 
   const [inserted] = await db
     .insert(postsTable)

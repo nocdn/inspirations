@@ -141,6 +141,9 @@ function reducer(state: State, action: Action): State {
         ),
       }
     case "AUTO_FOCUS_HANDLED":
+      if (!state.autoFocusComment) {
+        return state
+      }
       return { ...state, autoFocusComment: false }
     case "COMMENT_DONE":
       return {

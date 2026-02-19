@@ -16,6 +16,16 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Optional OG image fallback service
+
+If OG image extraction fails for some URLs, you can configure a fallback metadata service:
+
+```bash
+FALLBACK_METADATA_ENDPOINT_URL=http://localhost:3020
+```
+
+When set, the app will `POST` to `/og` on that service with `{ "url": "..." }` and use the returned image as a fallback preview.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
