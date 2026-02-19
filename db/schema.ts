@@ -5,6 +5,7 @@ export const postsTable = pgTable("posts_table", {
   collection: text("collection").notNull(),
   url: text("url").notNull(),
   imageUrl: text("image_url").notNull(),
+  videoUrl: text("video_url"),
   comment: text("comment").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

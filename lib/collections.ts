@@ -20,6 +20,7 @@ export async function getCollectionItems(slug: string): Promise<ImageItem[]> {
   return posts.map((post) => ({
     id: post.id.toString(),
     imageUrl: post.imageUrl,
+    videoUrl: post.videoUrl || undefined,
     title: post.url,
     comment: post.comment || undefined,
     dateCreated: post.createdAt.toLocaleDateString("en-US", {

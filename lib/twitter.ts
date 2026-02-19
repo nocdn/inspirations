@@ -156,6 +156,10 @@ export async function getTweetData(
         (media.type === "video" || media.type === "animated_gif") &&
         media.video_info
       ) {
+        if (!imageUrls.includes(media.media_url_https)) {
+          imageUrls.push(media.media_url_https)
+        }
+
         const mp4Variants = media.video_info.variants
           .filter((v) => v.content_type === "video/mp4")
           .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))

@@ -43,3 +43,8 @@ next-env.d.ts
 # skills
 .agents/
 Agents.md
+
+# migrations
+/migrations/*
+/migrations/meta/*
+

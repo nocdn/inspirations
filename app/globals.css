@@ -203,3 +203,8 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+.video-zoomed-controls::-webkit-media-controls-panel {
+  transform: scale(0.4);
+  transform-origin: bottom center;
+}

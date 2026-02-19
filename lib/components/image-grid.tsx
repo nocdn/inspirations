@@ -19,9 +19,11 @@ type ImageGridProps = {
 export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: ImageGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
   const topIdRef = useRef<string | null>(null)
   const [topIdState, setTopIdState] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [imageDimensions, setImageDimensions] = useState<
     Record<string, { width: number; height: number }>
   >({})
@@ -105,6 +107,22 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
     },
     [isMobile, zoomedId, selectedId, handleZoom, onSelect]
   )
+
+  useEffect(() => {
+    for (const [id, videoEl] of videoRefs.current) {
+      const isActive = selectedId === id || zoomedId === id || hoveredId === id
+      if (isActive) {
+        if (videoEl.paused) {
+          videoEl.play().catch(() => {})
+        }
+      } else {
+        if (!videoEl.paused) {
+          videoEl.pause()
+          videoEl.currentTime = 0
+        }
+      }
+    }
+  }, [selectedId, zoomedId, hoveredId])
 
   const handleImageLoad = useCallback(
     (id: string, event: React.SyntheticEvent<HTMLImageElement>) => {
@@ -191,16 +209,49 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
               }}
               transition={springTransition}
             >
-              <div className="relative border-shadow">
-                <Image
-                  src={item.imageUrl}
-                  alt={item.title}
-                  width={300}
-                  height={300}
-                  onLoad={(event) => handleImageLoad(item.id, event)}
-                  className="h-auto w-full md:w-auto md:max-h-[150px]"
-                  unoptimized
-                />
+              <div
+                className="relative border-shadow"
+                onMouseEnter={() => {
+                  if (item.videoUrl) setHoveredId(item.id)
+                }}
+                onMouseLeave={() => {
+                  if (item.videoUrl) setHoveredId(null)
+                }}
+              >
+                {item.videoUrl ? (
+                  <video
+                    ref={(el) => {
+                      if (el) videoRefs.current.set(item.id, el)
+                      else videoRefs.current.delete(item.id)
+                    }}
+                    src={item.videoUrl}
+                    poster={item.imageUrl}
+                    controls={isZoomed}
+                    playsInline
+                    preload="metadata"
+                    muted
+                    className={`h-auto w-full md:w-auto md:max-h-[150px]${isZoomed ? " video-zoomed-controls" : ""}`}
+                    onLoadedMetadata={(event) => {
+                      const { videoWidth, videoHeight } = event.currentTarget
+                      if (!videoWidth || !videoHeight) return
+                      setImageDimensions((prev) => {
+                        const existing = prev[item.id]
+                        if (existing && existing.width === videoWidth && existing.height === videoHeight) return prev
+                        return { ...prev, [item.id]: { width: videoWidth, height: videoHeight } }
+                      })
+                    }}
+                  />
+                ) : (
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.title}
+                    width={300}
+                    height={300}
+                    onLoad={(event) => handleImageLoad(item.id, event)}
+                    className="h-auto w-full md:w-auto md:max-h-[150px]"
+                    unoptimized
+                  />
+                )}
                 <m.div
                   initial={false}
                   animate={{ opacity: isZoomed ? 1 : 0 }}

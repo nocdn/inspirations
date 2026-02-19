@@ -104,6 +104,17 @@ function getExtensionFromContentType(contentType: string | null) {
   return mapping[normalized] || "bin"
 }
 
+function getExtensionFromVideoContentType(contentType: string | null) {
+  if (!contentType) return "mp4"
+  const normalized = contentType.toLowerCase().split(";")[0].trim()
+  const mapping: Record<string, string> = {
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+  }
+  return mapping[normalized] || "mp4"
+}
+
 async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
   console.log(`[OG] Downloading image: ${imageUrl}`)
   const response = await fetch(imageUrl, {
@@ -150,6 +161,53 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
     normalizedContentType
   )
   console.log(`[OG] Upload complete — public URL: ${result.publicUrl}`)
+  return result
+}
+
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024
+
+async function uploadRemoteVideoToR2(videoUrl: string, sourceHostname: string) {
+  console.log(`[VIDEO] Downloading video: ${videoUrl}`)
+  const response = await fetch(videoUrl, {
+    headers: {
+      "user-agent": USER_AGENT,
+    },
+  })
+
+  if (!response.ok) {
+    console.error(`[VIDEO] Video download failed — HTTP ${response.status} from ${videoUrl}`)
+    throw new Error(`Failed to download video (${response.status})`)
+  }
+
+  const contentLengthHeader = response.headers.get("content-length")
+  const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : NaN
+  console.log(
+    `[VIDEO] Response status=${response.status}, content-type=${response.headers.get("content-type")}, content-length=${contentLengthHeader ?? "unknown"}`
+  )
+  if (!Number.isNaN(contentLength) && contentLength > MAX_VIDEO_BYTES) {
+    console.error(`[VIDEO] Video too large: ${contentLength} bytes (max ${MAX_VIDEO_BYTES})`)
+    throw new Error("Video is too large to cache")
+  }
+
+  const contentTypeHeader = response.headers.get("content-type")
+  const normalizedContentType = contentTypeHeader?.toLowerCase().split(";")[0].trim()
+
+  const arrayBuffer = await response.arrayBuffer()
+  console.log(`[VIDEO] Downloaded ${arrayBuffer.byteLength} bytes`)
+  if (arrayBuffer.byteLength > MAX_VIDEO_BYTES) {
+    console.error(`[VIDEO] Video body too large: ${arrayBuffer.byteLength} bytes`)
+    throw new Error("Video is too large to cache")
+  }
+
+  const ext = getExtensionFromVideoContentType(contentTypeHeader)
+  const filename = `video-${sourceHostname}.${ext}`
+  console.log(`[VIDEO] Uploading to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`)
+  const result = await uploadBufferToR2(
+    new Uint8Array(arrayBuffer),
+    filename,
+    normalizedContentType ?? "video/mp4"
+  )
+  console.log(`[VIDEO] Upload complete — public URL: ${result.publicUrl}`)
   return result
 }
 
@@ -301,14 +359,26 @@ export async function addTweetToCollection(
   tweetUrl: string,
   imageUrl: string,
   authorName: string,
-  comment: string
+  comment: string,
+  remoteVideoUrl?: string
 ) {
+  let videoPublicUrl: string | undefined
+  if (remoteVideoUrl) {
+    try {
+      const uploaded = await uploadRemoteVideoToR2(remoteVideoUrl, "twitter")
+      videoPublicUrl = uploaded.publicUrl
+    } catch (err) {
+      console.error("[VIDEO] Failed to upload tweet video:", err)
+    }
+  }
+
   const [inserted] = await db
     .insert(postsTable)
     .values({
       collection,
       url: tweetUrl,
       imageUrl,
+      videoUrl: videoPublicUrl ?? null,
       comment,
     })
     .returning()
@@ -321,6 +391,7 @@ export async function addTweetToCollection(
   return {
     id: inserted.id.toString(),
     imageUrl: inserted.imageUrl,
+    videoUrl: inserted.videoUrl || undefined,
     title: authorName,
     comment: inserted.comment || undefined,
     dateCreated: inserted.createdAt.toLocaleDateString("en-US", {
@@ -483,6 +554,18 @@ export async function deleteItem(itemId: string, collection: string) {
       console.log(`[R2 DELETE] Deleted object ${maybeR2Key}`)
     } catch (error) {
       console.error(`[R2 DELETE] Failed to delete object ${maybeR2Key}:`, error)
+    }
+  }
+
+  if (deleted.videoUrl) {
+    const maybeVideoR2Key = getR2KeyFromPublicUrl(deleted.videoUrl)
+    if (maybeVideoR2Key) {
+      try {
+        await deleteObjectFromR2(maybeVideoR2Key)
+        console.log(`[R2 DELETE] Deleted video object ${maybeVideoR2Key}`)
+      } catch (error) {
+        console.error(`[R2 DELETE] Failed to delete video object ${maybeVideoR2Key}:`, error)
+      }
     }
   }
 

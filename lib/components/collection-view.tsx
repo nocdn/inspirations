@@ -363,12 +363,14 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
         const firstImage = tweet.imageUrls[0]
         const imageUrl = firstImage !== undefined ? firstImage : tweet.author.profileImageUrl
+        const firstVideo = tweet.videoUrls[0]
         const newItem = await addTweetToCollection(
           collectionName,
           normalizedUrl,
           imageUrl,
           tweet.author.name,
-          tweet.text.slice(0, 100)
+          tweet.text.slice(0, 100),
+          firstVideo
         )
         dispatch({ type: "UPLOAD_SUCCESS", item: newItem })
       } catch (err) {
