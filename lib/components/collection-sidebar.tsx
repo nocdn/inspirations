@@ -174,7 +174,7 @@ export function CollectionSidebar({
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 text-[16px] font-medium">
                   <Loader className="h-4 w-4 animate-spin" />
-                  <span>Uploading {uploadingState.type}</span>
+                  <span>Uploading {uploadingState.type === "url" ? "URL" : uploadingState.type}</span>
                 </div>
                 <p className="text-[12px] text-muted-foreground/50">
                   {new Date().toLocaleDateString("en-GB")}

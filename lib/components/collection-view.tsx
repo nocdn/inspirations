@@ -56,7 +56,7 @@ type State = {
   zoomedId: string | null
   autoFocusComment: boolean
   uploadingState: UploadingState
-  pendingDeletions: ImageItem[]
+  pendingDeletions: (ImageItem & { _originalIndex: number })[]
   newlyUploadedId: string | null
 }
 
@@ -69,9 +69,9 @@ type Action =
   | { type: "CANCEL_UPLOAD" }
   | { type: "DELETE_ITEM"; item: ImageItem }
   | { type: "DELETE_ITEM_IMMEDIATE"; id: string }
-  | { type: "UNDO_DELETE"; item: ImageItem }
+  | { type: "UNDO_DELETE"; item: ImageItem & { _originalIndex: number } }
   | { type: "CONFIRM_DELETE"; id: string }
-  | { type: "RESTORE_ITEM"; item: ImageItem; id: string }
+  | { type: "RESTORE_ITEM"; item: ImageItem; id: string; originalIndex: number }
   | { type: "UPDATE_COMMENT"; id: string; comment: string }
   | { type: "AUTO_FOCUS_HANDLED" }
   | { type: "COMMENT_DONE"; id: string }
@@ -110,36 +110,47 @@ function reducer(state: State, action: Action): State {
         uploadingState: null,
         selectedId: null,
       }
-    case "DELETE_ITEM":
+    case "DELETE_ITEM": {
+      const originalIndex = state.items.findIndex((item) => item.id === action.item.id)
       return {
         ...state,
         selectedId: null,
         items: state.items.filter((item) => item.id !== action.item.id),
-        pendingDeletions: [action.item, ...state.pendingDeletions],
+        pendingDeletions: [{ ...action.item, _originalIndex: originalIndex }, ...state.pendingDeletions],
       }
+    }
     case "DELETE_ITEM_IMMEDIATE":
       return {
         ...state,
         selectedId: null,
         items: state.items.filter((item) => item.id !== action.id),
       }
-    case "UNDO_DELETE":
+    case "UNDO_DELETE": {
+      const { _originalIndex, ...item } = action.item
+      const insertAt = Math.min(_originalIndex, state.items.length)
+      const newItems = [...state.items]
+      newItems.splice(insertAt, 0, item)
       return {
         ...state,
-        items: [action.item, ...state.items],
-        pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.item.id),
+        items: newItems,
+        pendingDeletions: state.pendingDeletions.filter((i) => i.id !== action.item.id),
       }
+    }
     case "CONFIRM_DELETE":
       return {
         ...state,
         pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.id),
       }
-    case "RESTORE_ITEM":
+    case "RESTORE_ITEM": {
+      const restoreAt = Math.min(action.originalIndex, state.items.length)
+      const restoredItems = [...state.items]
+      restoredItems.splice(restoreAt, 0, action.item)
       return {
         ...state,
-        items: [action.item, ...state.items],
+        items: restoredItems,
         pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.id),
       }
+    }
     case "UPDATE_COMMENT":
       return {
         ...state,
@@ -419,6 +430,8 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
                 const idToDelete = selectedId
 
+                const originalIndex = items.findIndex((item) => item.id === selectedId)
+
                 if (immediate) {
                   dispatch({ type: "DELETE_ITEM_IMMEDIATE", id: idToDelete })
 
@@ -427,7 +440,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
                       await deleteItem(idToDelete, collectionName)
                     } catch (err) {
                       console.error("Failed to delete item:", err)
-                      dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete })
+                      dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete, originalIndex })
                     }
                   })()
 
@@ -442,7 +455,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
                     dispatch({ type: "CONFIRM_DELETE", id: idToDelete })
                   } catch (err) {
                     console.error("Failed to delete item:", err)
-                    dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete })
+                    dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete, originalIndex })
                   }
 
                   deleteTimeoutsRef.current.delete(idToDelete)
