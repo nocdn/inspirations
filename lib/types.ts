@@ -3,6 +3,7 @@ export type ImageItem = {
   imageUrl: string
   videoUrl?: string
   title: string
+  originalUrl?: string
   comment?: string
   dateCreated: string
 }

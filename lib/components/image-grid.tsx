@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import Image from "next/image"
 
+import { ExternalLink } from "lucide-react"
 import { AnimatePresence, LazyMotion, domAnimation, m, useReducedMotion } from "motion/react"
 
 import type { ImageItem } from "@/lib/types"
@@ -193,7 +194,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
               e.stopPropagation()
               handleBackdropClick()
             }}
-            className="fixed inset-0 bg-black/50 z-50"
+            className="fixed inset-0 bg-black/60 z-50"
           />
         )}
       </AnimatePresence>
@@ -262,7 +263,12 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                       if (!videoWidth || !videoHeight) return
                       setImageDimensions((prev) => {
                         const existing = prev[item.id]
-                        if (existing && existing.width === videoWidth && existing.height === videoHeight) return prev
+                        if (
+                          existing &&
+                          existing.width === videoWidth &&
+                          existing.height === videoHeight
+                        )
+                          return prev
                         return { ...prev, [item.id]: { width: videoWidth, height: videoHeight } }
                       })
                     }}
@@ -281,7 +287,9 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                 <m.div
                   initial={false}
                   animate={{ opacity: isZoomed ? 1 : 0 }}
-                  transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
+                  transition={
+                    prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }
+                  }
                   style={{
                     fontFamily: isMobile
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
@@ -295,8 +303,25 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                       <div>{resolutionText}</div>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-white/50 mb-px font-medium">Filename</div>
-                      <div className="break-all">{item.title}</div>
+                      {item.originalUrl ? (
+                        <>
+                          <div className="text-white/50 mb-px font-medium">Original URL</div>
+                          <a
+                            href={item.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="pointer-events-auto inline-flex items-center gap-1 text-white hover:text-white/80 transition-colors"
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            Go to link <ExternalLink className="w-[1em] h-[1em]" />
+                          </a>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-white/50 mb-px font-medium">Filename</div>
+                          <div className="break-all">{item.title}</div>
+                        </>
+                      )}
                     </div>
                     <div className="shrink-0">
                       <div className="text-white/50 mb-px font-medium">Date Created</div>

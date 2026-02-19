@@ -377,6 +377,7 @@ export async function addTweetToCollection(
     .values({
       collection,
       url: tweetUrl,
+      title: authorName,
       imageUrl,
       videoUrl: videoPublicUrl ?? null,
       comment,
@@ -393,6 +394,7 @@ export async function addTweetToCollection(
     imageUrl: inserted.imageUrl,
     videoUrl: inserted.videoUrl || undefined,
     title: authorName,
+    originalUrl: tweetUrl,
     comment: inserted.comment || undefined,
     dateCreated: inserted.createdAt.toLocaleDateString("en-US", {
       month: "short",
@@ -484,7 +486,8 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
     .insert(postsTable)
     .values({
       collection,
-      url: title,
+      url: parsedUrl.toString(),
+      title,
       imageUrl: uploadedOgImage.publicUrl,
       comment: description,
     })
@@ -498,7 +501,8 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
   return {
     id: inserted.id.toString(),
     imageUrl: inserted.imageUrl,
-    title: inserted.url,
+    title,
+    originalUrl: parsedUrl.toString(),
     comment: inserted.comment || undefined,
     dateCreated: inserted.createdAt.toLocaleDateString("en-US", {
       month: "short",

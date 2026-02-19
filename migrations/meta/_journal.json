@@ -15,6 +15,13 @@
       "when": 1771526145488,
       "tag": "0001_heavy_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771532292402,
+      "tag": "0002_fluffy_lord_tyger",
+      "breakpoints": true
     }
   ]
 }

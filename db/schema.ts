@@ -4,6 +4,7 @@ export const postsTable = pgTable("posts_table", {
   id: serial("id").primaryKey(),
   collection: text("collection").notNull(),
   url: text("url").notNull(),
+  title: text("title"),
   imageUrl: text("image_url").notNull(),
   videoUrl: text("video_url"),
   comment: text("comment").notNull(),

@@ -17,18 +17,22 @@ export async function getCollectionItems(slug: string): Promise<ImageItem[]> {
 
   const posts = await db.select().from(postsTable).where(eq(postsTable.collection, slug)).orderBy(desc(postsTable.createdAt))
 
-  return posts.map((post) => ({
-    id: post.id.toString(),
-    imageUrl: post.imageUrl,
-    videoUrl: post.videoUrl || undefined,
-    title: post.url,
-    comment: post.comment || undefined,
-    dateCreated: post.createdAt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
-  }))
+  return posts.map((post) => {
+    const isFile = !post.url.startsWith("http://") && !post.url.startsWith("https://")
+    return {
+      id: post.id.toString(),
+      imageUrl: post.imageUrl,
+      videoUrl: post.videoUrl || undefined,
+      title: post.title || post.url,
+      originalUrl: isFile ? undefined : post.url,
+      comment: post.comment || undefined,
+      dateCreated: post.createdAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    }
+  })
 }
 
 export async function getAllCollectionSlugs(): Promise<string[]> {
