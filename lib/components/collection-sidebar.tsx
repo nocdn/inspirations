@@ -14,6 +14,8 @@ import {
 
 import type { ImageItem } from "@/lib/types"
 
+const VALID_COLLECTIONS = ["typography", "components", "animations", "uncategorized"]
+
 type UploadingState = {
   type: "image" | "tweet" | "url"
   title: string
@@ -91,12 +93,21 @@ export function CollectionSidebar({
   const [editedComment, setEditedComment] = useState("")
   const [isAddingCollection, setIsAddingCollection] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState("")
+  const [invalidCollection, setInvalidCollection] = useState(false)
+  const invalidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const commentRef = useRef<HTMLTextAreaElement>(null)
   const addCollectionRef = useRef<HTMLInputElement>(null)
+  const tabTransitionRef = useRef(false)
   const prefersReducedMotion = useReducedMotion()
   const prevSelectedIdRef = useRef<string | undefined>(selectedItem?.id)
   const autoFocusHandledIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (invalidTimerRef.current) clearTimeout(invalidTimerRef.current)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     if (!isEditingTitle || !titleRef.current) return
@@ -196,6 +207,11 @@ export function CollectionSidebar({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleCommentSave()
+    } else if (e.key === "Tab") {
+      e.preventDefault()
+      tabTransitionRef.current = true
+      handleCommentSave()
+      setIsAddingCollection(true)
     } else if (e.key === "Escape") {
       e.stopPropagation()
       setIsEditingComment(false)
@@ -280,6 +296,10 @@ export function CollectionSidebar({
                     onChange={(e) => setEditedComment(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onBlur={() => {
+                      if (tabTransitionRef.current) {
+                        tabTransitionRef.current = false
+                        return
+                      }
                       setIsEditingComment(false)
                       onCommentCancel?.()
                     }}
@@ -344,13 +364,24 @@ export function CollectionSidebar({
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && newCollectionName.trim()) {
                           e.preventDefault()
-                          onAddCollection?.(newCollectionName.trim().toLowerCase())
-                          setNewCollectionName("")
-                          setIsAddingCollection(false)
+                          const name = newCollectionName.trim().toLowerCase()
+                          if (VALID_COLLECTIONS.includes(name)) {
+                            onAddCollection?.(name)
+                            setNewCollectionName("")
+                            setInvalidCollection(false)
+                          } else {
+                            setNewCollectionName("")
+                            setInvalidCollection(true)
+                            if (invalidTimerRef.current) clearTimeout(invalidTimerRef.current)
+                            invalidTimerRef.current = setTimeout(
+                              () => setInvalidCollection(false),
+                              1000
+                            )
+                          }
                         } else if (e.key === "Escape") {
-                          e.stopPropagation()
                           setIsAddingCollection(false)
                           setNewCollectionName("")
+                          setInvalidCollection(false)
                         }
                       }}
                       onBlur={() => {
@@ -363,7 +394,13 @@ export function CollectionSidebar({
                       className="text-[13px] text-foreground bg-transparent border-none outline-none p-0 m-0 w-full placeholder:text-muted-foreground/40"
                       placeholder="Name..."
                     />
-                  ) : (
+                  ) : null}
+                  {invalidCollection && (
+                    <span className="text-[12px] text-red-400/90 motion-opacity-out-0 motion-delay-700 motion-duration-150">
+                      Invalid collection
+                    </span>
+                  )}
+                  {!isAddingCollection && (
                     <button
                       type="button"
                       onMouseDown={(e) => {
