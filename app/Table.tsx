@@ -3,6 +3,7 @@ import Link from "next/link"
 import AnimationsSymbol from "@/app/symbols/animations"
 import ComponentSymbol from "@/app/symbols/component"
 import Typography from "@/app/symbols/typography"
+import UncategorisedSymbol from "@/app/symbols/uncategorised"
 
 type Row = {
   id: string
@@ -34,13 +35,19 @@ const rows: Row[] = [
     description: "Ambitious animations and transitions.",
     displayComponent: <AnimationsSymbol className="text-[#BBB]" />,
   },
+  {
+    id: "0",
+    collection: "uncategorized",
+    count: 14,
+    description: "Items not yet categorized.",
+    displayComponent: <UncategorisedSymbol />,
+  },
 ]
 
 // Add rows for:
 // - OpenGraph Images
 // - Colours
 // - Logos
-
 
 export default function Table() {
   return (
@@ -57,7 +64,13 @@ export default function Table() {
         <tbody>
           {rows.map((row, index) => (
             <tr key={row.id} className="border-b">
-              <td className="py-2 pl-[5px] pr-4 opacity-70">{index + 1}</td>
+              <td className="py-2 pl-[5px] pr-4 opacity-70">
+                {row.collection !== "uncategorized" ? (
+                  index + 1
+                ) : (
+                  <span className="text-[#a7a5a5]">0</span>
+                )}
+              </td>
               <td className="py-2 pr-4 flex gap-5 items-center">
                 <div className="w-[40px] h-[30px] border-shadow rounded-lg supports-[corner-shape:squircle]:rounded-[30px] supports-[corner-shape:squircle]:[corner-shape:squircle] grid place-content-center">
                   {row.displayComponent}

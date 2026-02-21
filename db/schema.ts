@@ -2,7 +2,7 @@ import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core"
 
 export const postsTable = pgTable("posts_table", {
   id: serial("id").primaryKey(),
-  collection: text("collection").notNull(),
+  collections: text("collections").array().notNull(),
   url: text("url").notNull(),
   title: text("title"),
   imageUrl: text("image_url").notNull(),

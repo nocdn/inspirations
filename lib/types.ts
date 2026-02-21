@@ -5,5 +5,6 @@ export type ImageItem = {
   title: string
   originalUrl?: string
   comment?: string
+  collections: string[]
   dateCreated: string
 }

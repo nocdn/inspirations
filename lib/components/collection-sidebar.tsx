@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
-import { Loader } from "lucide-react"
+import { Loader, Plus } from "lucide-react"
 import {
   AnimatePresence,
   LazyMotion,
@@ -59,12 +59,15 @@ type CollectionSidebarProps = {
   itemCount: number
   selectedItem: ImageItem | null
   uploadingState?: UploadingState
+  onTitleChange?: (title: string) => void
   onCommentChange?: (comment: string) => void
   onCommentCancel?: () => void
   onDelete?: (immediate?: boolean) => void
   onCancelUpload?: () => void
   autoFocusComment?: boolean
   onAutoFocusHandled?: () => void
+  onAddCollection?: (collection: string) => void
+  onRemoveCollection?: (collection: string) => void
 }
 
 export function CollectionSidebar({
@@ -72,33 +75,56 @@ export function CollectionSidebar({
   itemCount,
   selectedItem,
   uploadingState,
+  onTitleChange,
   onCommentChange,
   onCommentCancel,
   onDelete,
   onCancelUpload,
   autoFocusComment,
   onAutoFocusHandled,
+  onAddCollection,
+  onRemoveCollection,
 }: CollectionSidebarProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState("")
   const [isEditingComment, setIsEditingComment] = useState(false)
   const [editedComment, setEditedComment] = useState("")
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [isAddingCollection, setIsAddingCollection] = useState(false)
+  const [newCollectionName, setNewCollectionName] = useState("")
+  const titleRef = useRef<HTMLTextAreaElement>(null)
+  const commentRef = useRef<HTMLTextAreaElement>(null)
+  const addCollectionRef = useRef<HTMLInputElement>(null)
   const prefersReducedMotion = useReducedMotion()
   const prevSelectedIdRef = useRef<string | undefined>(selectedItem?.id)
   const autoFocusHandledIdRef = useRef<string | null>(null)
 
   useLayoutEffect(() => {
-    if (!isEditingComment) return
-    inputRef.current?.focus()
+    if (!isEditingTitle || !titleRef.current) return
+    const el = titleRef.current
+    el.focus()
+    el.selectionStart = el.selectionEnd = el.value.length
+  }, [isEditingTitle, selectedItem?.id])
+
+  useLayoutEffect(() => {
+    if (!isEditingComment || !commentRef.current) return
+    const el = commentRef.current
+    el.focus()
+    el.selectionStart = el.selectionEnd = el.value.length
   }, [isEditingComment, selectedItem?.id])
+
+  useLayoutEffect(() => {
+    if (!isAddingCollection || !addCollectionRef.current) return
+    addCollectionRef.current.focus()
+  }, [isAddingCollection, selectedItem?.id])
 
   useEffect(() => {
     if (prevSelectedIdRef.current !== selectedItem?.id) {
       prevSelectedIdRef.current = selectedItem?.id
-      if (isEditingComment) {
-        setIsEditingComment(false)
-      }
+      if (isEditingTitle) setIsEditingTitle(false)
+      if (isEditingComment) setIsEditingComment(false)
+      if (isAddingCollection) setIsAddingCollection(false)
     }
-  }, [selectedItem?.id, isEditingComment])
+  }, [selectedItem?.id, isEditingTitle, isEditingComment, isAddingCollection])
 
   useEffect(() => {
     if (!selectedItem || !autoFocusComment) return
@@ -109,6 +135,28 @@ export function CollectionSidebar({
     setIsEditingComment(true)
     onAutoFocusHandled?.()
   }, [autoFocusComment, selectedItem?.id])
+
+  const handleTitleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setEditedTitle(selectedItem?.title || "")
+    setIsEditingTitle(true)
+  }
+
+  const handleTitleSave = () => {
+    onTitleChange?.(editedTitle)
+    setIsEditingTitle(false)
+  }
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleTitleSave()
+    } else if (e.key === "Escape") {
+      e.stopPropagation()
+      setIsEditingTitle(false)
+    }
+  }
 
   const startEditing = (comment: string) => {
     setEditedComment(comment)
@@ -160,7 +208,7 @@ export function CollectionSidebar({
 
   return (
     <LazyMotion features={domAnimation}>
-      <div className="w-full md:w-[240px] shrink-0 md:sticky md:top-24 h-fit">
+      <div className="w-full md:w-[240px] shrink-0 md:sticky md:top-24 md:self-start h-fit">
         <AnimatePresence mode="popLayout" custom={1} initial={false}>
           {showUploadingPane ? (
             <m.div
@@ -175,7 +223,9 @@ export function CollectionSidebar({
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 text-[16px] font-medium">
                   <Loader className="h-4 w-4 animate-spin" />
-                  <span>Uploading {uploadingState.type === "url" ? "URL" : uploadingState.type}</span>
+                  <span>
+                    Uploading {uploadingState.type === "url" ? "URL" : uploadingState.type}
+                  </span>
                 </div>
                 <p className="text-[12px] text-muted-foreground/50">
                   {new Date().toLocaleDateString("en-GB")}
@@ -201,10 +251,31 @@ export function CollectionSidebar({
               className="flex flex-col gap-4"
             >
               <div className="flex flex-col gap-2">
-                <h2 className="text-[16px] font-medium">{selectedItem.title}</h2>
+                {isEditingTitle ? (
+                  <textarea
+                    ref={titleRef}
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    onKeyDown={handleTitleKeyDown}
+                    onBlur={() => setIsEditingTitle(false)}
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    className="text-[16px] font-medium text-foreground bg-transparent border-none outline-none p-0 m-0 w-full resize-none [field-sizing:content]"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onMouseDown={handleTitleClick}
+                    className="text-[16px] font-medium cursor-text text-left bg-transparent border-none p-0"
+                    aria-label="Edit title"
+                  >
+                    {selectedItem.title}
+                  </button>
+                )}
                 {isEditingComment ? (
                   <textarea
-                    ref={inputRef}
+                    ref={commentRef}
                     value={editedComment}
                     onChange={(e) => setEditedComment(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -236,15 +307,76 @@ export function CollectionSidebar({
                     Add comment...
                   </button>
                 )}
+
                 <p className="text-[12px] text-muted-foreground/50">{selectedItem.dateCreated}</p>
+
                 <button
                   type="button"
                   onMouseDown={handleDeleteMouseDown}
-                  className="text-[12px] text-muted-foreground/50 text-left bg-transparent border-none p-0 w-fit hover:underline hover:text-red-400/70 transition-colors duration-150 cursor-pointer"
-                  aria-label="Delete item"
+                  className="text-[12px] text-muted-foreground/50 text-left bg-transparent border-none p-0 w-fit hover:underline hover:text-red-400/70 transition-colors duration-150 cursor-pointer mb-6"
+                  aria-label="Remove from collection"
                 >
                   Delete
                 </button>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-[16px] font-medium">Collections</h3>
+                <div className="flex flex-col gap-1">
+                  {selectedItem.collections.map((col) => (
+                    <button
+                      key={col}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onRemoveCollection?.(col)
+                      }}
+                      className="text-[13px] text-muted-foreground/70 text-left bg-transparent border-none p-0 w-fit hover:line-through hover:text-red-400/70 capitalize cursor-pointer"
+                    >
+                      {col}
+                    </button>
+                  ))}
+                  {isAddingCollection ? (
+                    <input
+                      ref={addCollectionRef}
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newCollectionName.trim()) {
+                          e.preventDefault()
+                          onAddCollection?.(newCollectionName.trim().toLowerCase())
+                          setNewCollectionName("")
+                          setIsAddingCollection(false)
+                        } else if (e.key === "Escape") {
+                          e.stopPropagation()
+                          setIsAddingCollection(false)
+                          setNewCollectionName("")
+                        }
+                      }}
+                      onBlur={() => {
+                        setIsAddingCollection(false)
+                        setNewCollectionName("")
+                      }}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      className="text-[13px] text-foreground bg-transparent border-none outline-none p-0 m-0 w-full placeholder:text-muted-foreground/40"
+                      placeholder="Name..."
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setIsAddingCollection(true)
+                      }}
+                      className="text-[13px] text-muted-foreground/40 cursor-text italic text-left bg-transparent border-none p-0"
+                    >
+                      Add another...
+                    </button>
+                  )}
+                </div>
               </div>
             </m.div>
           ) : (

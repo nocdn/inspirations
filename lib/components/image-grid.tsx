@@ -198,9 +198,13 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
           />
         )}
       </AnimatePresence>
-      <div ref={containerRef} className="flex flex-col md:flex-row md:flex-wrap gap-6">
+      <div
+        ref={containerRef}
+        className={`flex flex-col md:flex-row md:flex-wrap gap-6 group/grid ${selectedId ? "has-selection" : ""}`}
+      >
         {items.map((item, index) => {
           const isZoomed = zoomedId === item.id
+          const isSelected = selectedId === item.id
           const translation = currentTranslations[item.id] ?? { x: 0, y: 0 }
           const dimensions = imageDimensions[item.id]
           const resolutionText = dimensions ? `${dimensions.width} × ${dimensions.height}` : "—"
@@ -225,9 +229,9 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
               className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none motion-opacity-in-0 ${
                 zoomedId && !isZoomed
                   ? "opacity-50"
-                  : selectedId && selectedId !== item.id
-                    ? "opacity-40"
-                    : ""
+                  : isSelected
+                    ? ""
+                    : "group-[.has-selection]/grid:opacity-40"
               } ${isTop ? "relative z-100" : "relative z-0"}`}
               style={{ animationDelay: `${index * 0.02}s` }}
               animate={{
@@ -313,7 +317,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                             className="pointer-events-auto inline-flex items-center gap-1 text-white hover:text-white/80 transition-colors"
                             onMouseDown={(e) => e.stopPropagation()}
                           >
-                            Go to link <ExternalLink className="w-[1em] h-[1em]" />
+                            Go to link <ExternalLink className="size-[1em] -translate-y-[0.48px]" />
                           </a>
                         </>
                       ) : (

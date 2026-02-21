@@ -1,8 +1,8 @@
 "use server"
 
-import { updateTag } from "next/cache"
+import { revalidatePath, updateTag } from "next/cache"
 
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import ogs from "open-graph-scraper"
 
 import { postsTable } from "@/db/schema"
@@ -329,7 +329,7 @@ export async function saveImageToCollection(
   const [inserted] = await db
     .insert(postsTable)
     .values({
-      collection,
+      collections: [collection],
       url: filename,
       imageUrl,
       comment,
@@ -346,6 +346,7 @@ export async function saveImageToCollection(
     imageUrl: inserted.imageUrl,
     title: inserted.url,
     comment: inserted.comment || undefined,
+    collections: inserted.collections,
     dateCreated: inserted.createdAt.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -375,7 +376,7 @@ export async function addTweetToCollection(
   const [inserted] = await db
     .insert(postsTable)
     .values({
-      collection,
+      collections: [collection],
       url: tweetUrl,
       title: authorName,
       imageUrl,
@@ -396,6 +397,7 @@ export async function addTweetToCollection(
     title: authorName,
     originalUrl: tweetUrl,
     comment: inserted.comment || undefined,
+    collections: inserted.collections,
     dateCreated: inserted.createdAt.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -485,7 +487,7 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
   const [inserted] = await db
     .insert(postsTable)
     .values({
-      collection,
+      collections: [collection],
       url: parsedUrl.toString(),
       title,
       imageUrl: uploadedOgImage.publicUrl,
@@ -504,11 +506,37 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
     title,
     originalUrl: parsedUrl.toString(),
     comment: inserted.comment || undefined,
+    collections: inserted.collections,
     dateCreated: inserted.createdAt.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     }),
+  }
+}
+
+export async function updateItemTitle(itemId: string, collection: string, title: string) {
+  const [updated] = await db
+    .update(postsTable)
+    .set({
+      title,
+      updatedAt: new Date(),
+    })
+    .where(eq(postsTable.id, parseInt(itemId, 10)))
+    .returning()
+
+  if (!updated) {
+    throw new Error(`Item ${itemId} not found`)
+  }
+
+  console.log(`[DB UPDATE] Updated title for item ${itemId}`)
+
+  updateTag(`collection:${collection}`)
+  console.log(`[CACHE INVALIDATE] Updated cache for collection: ${collection}`)
+
+  return {
+    id: updated.id.toString(),
+    title: updated.title || undefined,
   }
 }
 
@@ -583,4 +611,61 @@ export async function deleteItem(itemId: string, collection: string) {
   console.log(`[TOTAL] Delete operation completed in ${(totalTime - startTime).toFixed(2)}ms`)
 
   return { id: deleted.id.toString() }
+}
+
+export async function addItemToCollection(itemId: string, collection: string, currentCollection?: string) {
+  const [updated] = await db
+    .update(postsTable)
+    .set({
+      collections: sql`array_append(${postsTable.collections}, ${collection})`,
+      updatedAt: new Date(),
+    })
+    .where(eq(postsTable.id, parseInt(itemId, 10)))
+    .returning()
+
+  if (!updated) {
+    throw new Error(`Item ${itemId} not found`)
+  }
+
+  console.log(`[DB UPDATE] Added collection "${collection}" to item ${itemId}`)
+
+  updateTag(`collection:${collection}`)
+  revalidatePath(`/collections/${collection}`)
+  if (currentCollection && currentCollection !== collection) {
+    updateTag(`collection:${currentCollection}`)
+    revalidatePath(`/collections/${currentCollection}`)
+  }
+  updateTag("collection:uncategorized")
+  revalidatePath("/collections/uncategorized")
+  updateTag("all-collection-slugs")
+
+  return { id: updated.id.toString(), collections: updated.collections }
+}
+
+export async function removeItemFromCollection(itemId: string, collection: string, currentCollection?: string) {
+  const [updated] = await db
+    .update(postsTable)
+    .set({
+      collections: sql`array_remove(${postsTable.collections}, ${collection})`,
+      updatedAt: new Date(),
+    })
+    .where(eq(postsTable.id, parseInt(itemId, 10)))
+    .returning()
+
+  if (!updated) {
+    throw new Error(`Item ${itemId} not found`)
+  }
+
+  console.log(`[DB UPDATE] Removed collection "${collection}" from item ${itemId}`)
+
+  updateTag(`collection:${collection}`)
+  revalidatePath(`/collections/${collection}`)
+  if (currentCollection && currentCollection !== collection) {
+    updateTag(`collection:${currentCollection}`)
+    revalidatePath(`/collections/${currentCollection}`)
+  }
+  updateTag("collection:uncategorized")
+  revalidatePath("/collections/uncategorized")
+
+  return { id: updated.id.toString(), collections: updated.collections }
 }

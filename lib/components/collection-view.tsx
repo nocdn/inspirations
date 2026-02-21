@@ -1,14 +1,18 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useRef } from "react"
+import { useRouter } from "next/navigation"
 
 import {
+  addItemToCollection,
   addTweetToCollection,
   addUrlToCollection,
   deleteItem,
   getUploadUrl,
+  removeItemFromCollection,
   saveImageToCollection,
   updateItemComment,
+  updateItemTitle,
 } from "@/lib/actions"
 import { CollectionSidebar } from "@/lib/components/collection-sidebar"
 import { ImageGrid } from "@/lib/components/image-grid"
@@ -72,10 +76,13 @@ type Action =
   | { type: "UNDO_DELETE"; item: ImageItem & { _originalIndex: number } }
   | { type: "CONFIRM_DELETE"; id: string }
   | { type: "RESTORE_ITEM"; item: ImageItem; id: string; originalIndex: number }
+  | { type: "UPDATE_TITLE"; id: string; title: string }
   | { type: "UPDATE_COMMENT"; id: string; comment: string }
   | { type: "AUTO_FOCUS_HANDLED" }
   | { type: "COMMENT_DONE"; id: string }
   | { type: "COMMENT_CANCEL" }
+  | { type: "ADD_COLLECTION"; id: string; collection: string; currentCollection?: string }
+  | { type: "REMOVE_COLLECTION"; id: string; collection: string; currentCollection?: string }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -116,7 +123,10 @@ function reducer(state: State, action: Action): State {
         ...state,
         selectedId: null,
         items: state.items.filter((item) => item.id !== action.item.id),
-        pendingDeletions: [{ ...action.item, _originalIndex: originalIndex }, ...state.pendingDeletions],
+        pendingDeletions: [
+          { ...action.item, _originalIndex: originalIndex },
+          ...state.pendingDeletions,
+        ],
       }
     }
     case "DELETE_ITEM_IMMEDIATE":
@@ -151,6 +161,13 @@ function reducer(state: State, action: Action): State {
         pendingDeletions: state.pendingDeletions.filter((item) => item.id !== action.id),
       }
     }
+    case "UPDATE_TITLE":
+      return {
+        ...state,
+        items: state.items.map((item) =>
+          item.id === action.id ? { ...item, title: action.title } : item
+        ),
+      }
     case "UPDATE_COMMENT":
       return {
         ...state,
@@ -181,6 +198,32 @@ function reducer(state: State, action: Action): State {
             ? null
             : state.selectedId,
       }
+    case "ADD_COLLECTION": {
+      const updatedItems = state.items.map((item) =>
+        item.id === action.id
+          ? { ...item, collections: [...item.collections, action.collection] }
+          : item
+      )
+      const isUncategorized = action.currentCollection === "uncategorized"
+      return {
+        ...state,
+        items: isUncategorized ? updatedItems.filter((item) => item.id !== action.id) : updatedItems,
+        selectedId: isUncategorized ? null : state.selectedId,
+      }
+    }
+    case "REMOVE_COLLECTION": {
+      const updatedItems = state.items.map((item) =>
+        item.id === action.id
+          ? { ...item, collections: item.collections.filter((c) => c !== action.collection) }
+          : item
+      )
+      const removedCurrent = action.collection === action.currentCollection
+      return {
+        ...state,
+        items: removedCurrent ? updatedItems.filter((item) => item.id !== action.id) : updatedItems,
+        selectedId: removedCurrent ? null : state.selectedId,
+      }
+    }
     default:
       return state
   }
@@ -198,6 +241,7 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   })
 
   const { items, selectedId, zoomedId, autoFocusComment, uploadingState, pendingDeletions } = state
+  const router = useRouter()
   const deleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
 
@@ -240,6 +284,20 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
     [collectionName]
   )
 
+  const handleTitleChange = async (id: string, title: string) => {
+    dispatch({ type: "UPDATE_TITLE", id, title })
+
+    try {
+      await updateItemTitle(id, collectionName, title)
+    } catch (err) {
+      console.error("Failed to save title:", err)
+      const originalItem = initialItems.find((item) => item.id === id)
+      if (originalItem) {
+        dispatch({ type: "UPDATE_TITLE", id, title: originalItem.title })
+      }
+    }
+  }
+
   const handleCommentChange = async (id: string, comment: string) => {
     dispatch({ type: "UPDATE_COMMENT", id, comment })
 
@@ -263,9 +321,35 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
     dispatch({ type: "COMMENT_CANCEL" })
   }
 
+  const handleAddCollection = async (id: string, collection: string) => {
+    dispatch({ type: "ADD_COLLECTION", id, collection, currentCollection: collectionName })
+    try {
+      await addItemToCollection(id, collection, collectionName)
+      router.refresh()
+    } catch (err) {
+      console.error("Failed to add collection:", err)
+      dispatch({ type: "REMOVE_COLLECTION", id, collection })
+    }
+  }
+
+  const handleRemoveCollection = async (id: string, collection: string) => {
+    dispatch({ type: "REMOVE_COLLECTION", id, collection, currentCollection: collectionName })
+    try {
+      await removeItemFromCollection(id, collection, collectionName)
+      router.refresh()
+    } catch (err) {
+      console.error("Failed to remove collection:", err)
+      dispatch({ type: "ADD_COLLECTION", id, collection })
+    }
+  }
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      if (
+        e.key === "Escape" &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement)
+      ) {
         if (zoomedId) {
           dispatch({ type: "ZOOM", id: null })
         } else {
@@ -415,12 +499,13 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-8">
+    <div className="flex flex-col md:flex-row md:items-start gap-8">
       <CollectionSidebar
         collectionName={collectionName}
         itemCount={items.length}
         selectedItem={selectedItem}
         uploadingState={uploadingState}
+        onTitleChange={selectedId ? (title) => handleTitleChange(selectedId, title) : undefined}
         onCommentChange={
           selectedId ? (comment) => handleCommentChange(selectedId, comment) : undefined
         }
@@ -443,7 +528,12 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
                       await deleteItem(idToDelete, collectionName)
                     } catch (err) {
                       console.error("Failed to delete item:", err)
-                      dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete, originalIndex })
+                      dispatch({
+                        type: "RESTORE_ITEM",
+                        item: itemToDelete,
+                        id: idToDelete,
+                        originalIndex,
+                      })
                     }
                   })()
 
@@ -454,11 +544,16 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
 
                 const timeout = setTimeout(async () => {
                   try {
-                    await deleteItem(idToDelete, collectionName)
+                    await removeItemFromCollection(idToDelete, collectionName)
                     dispatch({ type: "CONFIRM_DELETE", id: idToDelete })
                   } catch (err) {
-                    console.error("Failed to delete item:", err)
-                    dispatch({ type: "RESTORE_ITEM", item: itemToDelete, id: idToDelete, originalIndex })
+                    console.error("Failed to remove item from collection:", err)
+                    dispatch({
+                      type: "RESTORE_ITEM",
+                      item: itemToDelete,
+                      id: idToDelete,
+                      originalIndex,
+                    })
                   }
 
                   deleteTimeoutsRef.current.delete(idToDelete)
@@ -471,6 +566,12 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
         onCancelUpload={uploadingState ? handleCancelUpload : undefined}
         autoFocusComment={autoFocusComment}
         onAutoFocusHandled={() => dispatch({ type: "AUTO_FOCUS_HANDLED" })}
+        onAddCollection={
+          selectedId ? (collection) => handleAddCollection(selectedId, collection) : undefined
+        }
+        onRemoveCollection={
+          selectedId ? (collection) => handleRemoveCollection(selectedId, collection) : undefined
+        }
       />
       <div className="flex-1">
         <ImageGrid
