@@ -12,9 +12,8 @@ import {
   useReducedMotion,
 } from "motion/react"
 
+import { isValidCollection, VALID_COLLECTIONS } from "@/lib/collection-config"
 import type { ImageItem } from "@/lib/types"
-
-const VALID_COLLECTIONS = ["typography", "components", "animations", "uncategorized"]
 
 type UploadingState = {
   type: "image" | "tweet" | "url"
@@ -414,7 +413,7 @@ export function CollectionSidebar({
                                 }
                                 if (e.key === "Enter" && query) {
                                   e.preventDefault()
-                                  if (VALID_COLLECTIONS.includes(query)) {
+                                  if (isValidCollection(query)) {
                                     selectSuggestion(query)
                                   } else {
                                     setNewCollectionName("")

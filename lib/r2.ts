@@ -1,16 +1,47 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+type R2Sdk = {
+  DeleteObjectCommand: typeof import("@aws-sdk/client-s3").DeleteObjectCommand
+  PutObjectCommand: typeof import("@aws-sdk/client-s3").PutObjectCommand
+  S3Client: typeof import("@aws-sdk/client-s3").S3Client
+  getSignedUrl: typeof import("@aws-sdk/s3-request-presigner").getSignedUrl
+}
 
-const R2 = new S3Client({
-  region: "auto",
-  endpoint: process.env.R2_ENDPOINT!,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
-  requestChecksumCalculation: "WHEN_REQUIRED",
-  responseChecksumValidation: "WHEN_REQUIRED",
-})
+let r2SdkPromise: Promise<R2Sdk> | undefined
+let r2ClientPromise: Promise<InstanceType<typeof import("@aws-sdk/client-s3").S3Client>> | undefined
+
+async function loadR2Sdk(): Promise<R2Sdk> {
+  if (!r2SdkPromise) {
+    r2SdkPromise = Promise.all([
+      import("@aws-sdk/client-s3"),
+      import("@aws-sdk/s3-request-presigner"),
+    ]).then(([clientS3, requestPresigner]) => ({
+      DeleteObjectCommand: clientS3.DeleteObjectCommand,
+      PutObjectCommand: clientS3.PutObjectCommand,
+      S3Client: clientS3.S3Client,
+      getSignedUrl: requestPresigner.getSignedUrl,
+    }))
+  }
+
+  return r2SdkPromise
+}
+
+async function getR2Client() {
+  if (!r2ClientPromise) {
+    r2ClientPromise = loadR2Sdk().then(({ S3Client }) =>
+      new S3Client({
+        region: "auto",
+        endpoint: process.env.R2_ENDPOINT!,
+        credentials: {
+          accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+        },
+        requestChecksumCalculation: "WHEN_REQUIRED",
+        responseChecksumValidation: "WHEN_REQUIRED",
+      })
+    )
+  }
+
+  return r2ClientPromise
+}
 
 const BUCKET_NAME = "inspirations"
 const PUBLIC_URL = "https://images.bartoszbak.org"
@@ -41,6 +72,7 @@ export async function uploadBufferToR2(
   filename: string,
   contentType?: string
 ): Promise<{ key: string; publicUrl: string }> {
+  const [{ PutObjectCommand }, R2] = await Promise.all([loadR2Sdk(), getR2Client()])
   const safeFilename = sanitizeFilename(filename) || "upload.bin"
   const key = `${Date.now()}-${safeFilename}`
 
@@ -60,6 +92,7 @@ export async function uploadBufferToR2(
 }
 
 export async function deleteObjectFromR2(key: string) {
+  const [{ DeleteObjectCommand }, R2] = await Promise.all([loadR2Sdk(), getR2Client()])
   await R2.send(
     new DeleteObjectCommand({
       Bucket: BUCKET_NAME,
@@ -72,6 +105,7 @@ export async function getPresignedUploadUrl(
   filename: string,
   contentType: string
 ): Promise<{ uploadUrl: string; key: string; publicUrl: string }> {
+  const [{ PutObjectCommand, getSignedUrl }, R2] = await Promise.all([loadR2Sdk(), getR2Client()])
   const key = `${Date.now()}-${filename}`
   const normalizedContentType = contentType?.trim()
 

@@ -16,6 +16,38 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Programmatic API
+
+You can create new inspirations without using the UI via `POST /api/inspirations`.
+
+The API runs the same ingestion flow as the app UI:
+
+- URL normalization and validation
+- Open Graph or favicon extraction
+- R2 upload
+- database insert
+- cache invalidation for affected collections and navigation
+
+Accepted collections are:
+
+- `typography`
+- `components`
+- `animations`
+- `uncategorized`
+
+Example:
+
+```bash
+curl -X POST http://localhost:3000/api/inspirations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://linear.app",
+    "collections": ["components", "animations"]
+  }'
+```
+
+Success returns `201` with the created item. Invalid collections or malformed input return `400`.
+
 ## Optional OG image fallback service
 
 If OG image extraction fails for some URLs, you can configure a fallback metadata service:
