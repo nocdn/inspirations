@@ -1,10 +1,9 @@
-import Link from "next/link"
-
 import AnimationsSymbol from "@/app/symbols/animations"
 import ComponentSymbol from "@/app/symbols/component"
 import Typography from "@/app/symbols/typography"
 import UncategorisedSymbol from "@/app/symbols/uncategorised"
 import { getCollectionItems, getUncategorizedItems } from "@/lib/collections"
+import Link from "@/lib/components/link"
 
 type Row = {
   id: string

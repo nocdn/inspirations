@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { getAllCollectionSlugs, getCollectionItems, getUncategorizedItems } from "@/lib/collections"
 import { CollectionView } from "@/lib/components/collection-view"
+import Link from "@/lib/components/link"
 
 const EMPTY_COLLECTION_PLACEHOLDER = "__placeholder__"
 
@@ -40,7 +40,8 @@ export default async function CollectionPage({ params }: PageProps) {
     notFound()
   }
 
-  const items = slug === "uncategorized" ? await getUncategorizedItems() : await getCollectionItems(slug)
+  const items =
+    slug === "uncategorized" ? await getUncategorizedItems() : await getCollectionItems(slug)
 
   return (
     <div className="w-screen pt-24 flex flex-col items-center px-6">
