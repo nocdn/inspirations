@@ -4,6 +4,7 @@ import AnimationsSymbol from "@/app/symbols/animations"
 import ComponentSymbol from "@/app/symbols/component"
 import Typography from "@/app/symbols/typography"
 import UncategorisedSymbol from "@/app/symbols/uncategorised"
+import { getCollectionItems, getUncategorizedItems } from "@/lib/collections"
 
 type Row = {
   id: string
@@ -13,32 +14,28 @@ type Row = {
   displayComponent: React.ReactNode
 }
 
-const rows: Row[] = [
+const staticRows = [
   {
     id: "1",
     collection: "typography",
-    count: 17,
     description: "Fonts and typography studies.",
     displayComponent: <Typography />,
   },
   {
     id: "2",
     collection: "components",
-    count: 8,
     description: "UI components and patterns.",
     displayComponent: <ComponentSymbol />,
   },
   {
     id: "3",
     collection: "animations",
-    count: 25,
     description: "Ambitious animations and transitions.",
     displayComponent: <AnimationsSymbol className="text-[#BBB]" />,
   },
   {
     id: "0",
     collection: "uncategorized",
-    count: 14,
     description: "Items not yet categorized.",
     displayComponent: <UncategorisedSymbol />,
   },
@@ -49,7 +46,21 @@ const rows: Row[] = [
 // - Colours
 // - Logos
 
-export default function Table() {
+export default async function Table() {
+  const counts = await Promise.all(
+    staticRows.map(async (row) => {
+      const items =
+        row.collection === "uncategorized"
+          ? await getUncategorizedItems()
+          : await getCollectionItems(row.collection)
+      return items.length
+    })
+  )
+
+  const rows: Row[] = staticRows.map((row, i) => ({
+    ...row,
+    count: counts[i],
+  }))
   return (
     <div className="w-full max-w-[567px]">
       <table className="w-full text-[14px] border-collapse">

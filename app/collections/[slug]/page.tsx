@@ -54,7 +54,7 @@ export default async function CollectionPage({ params }: PageProps) {
             ← Back
           </Link>
         </div>
-        <CollectionView collectionName={slug} items={items} />
+        <CollectionView key={slug} collectionName={slug} items={items} />
       </div>
     </div>
   )

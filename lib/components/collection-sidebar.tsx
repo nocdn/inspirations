@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
-import { Loader, Plus } from "lucide-react"
+import { CornerDownRight, Loader, Plus } from "lucide-react"
 import {
   AnimatePresence,
   LazyMotion,
@@ -94,6 +94,15 @@ export function CollectionSidebar({
   const [isAddingCollection, setIsAddingCollection] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState("")
   const [invalidCollection, setInvalidCollection] = useState(false)
+  const [focusedSuggestionIndex, _setFocusedSuggestionIndex] = useState(-1)
+  const focusedSuggestionIndexRef = useRef(-1)
+  const setFocusedSuggestionIndex = (v: number | ((prev: number) => number)) => {
+    _setFocusedSuggestionIndex((prev) => {
+      const next = typeof v === "function" ? v(prev) : v
+      focusedSuggestionIndexRef.current = next
+      return next
+    })
+  }
   const invalidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const commentRef = useRef<HTMLTextAreaElement>(null)
@@ -356,45 +365,117 @@ export function CollectionSidebar({
                       {col}
                     </button>
                   ))}
-                  {isAddingCollection ? (
-                    <input
-                      ref={addCollectionRef}
-                      value={newCollectionName}
-                      onChange={(e) => setNewCollectionName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && newCollectionName.trim()) {
-                          e.preventDefault()
-                          const name = newCollectionName.trim().toLowerCase()
-                          if (VALID_COLLECTIONS.includes(name)) {
-                            onAddCollection?.(name)
-                            setNewCollectionName("")
-                            setInvalidCollection(false)
-                          } else {
-                            setNewCollectionName("")
-                            setInvalidCollection(true)
-                            if (invalidTimerRef.current) clearTimeout(invalidTimerRef.current)
-                            invalidTimerRef.current = setTimeout(
-                              () => setInvalidCollection(false),
-                              1000
+                  {isAddingCollection
+                    ? (() => {
+                        const query = newCollectionName.trim().toLowerCase()
+                        const suggestions = query
+                          ? VALID_COLLECTIONS.filter(
+                              (c) => c.startsWith(query) && !selectedItem.collections.includes(c)
                             )
-                          }
-                        } else if (e.key === "Escape") {
-                          setIsAddingCollection(false)
+                          : []
+
+                        const selectSuggestion = (name: string) => {
+                          onAddCollection?.(name)
                           setNewCollectionName("")
-                          setInvalidCollection(false)
+                          setFocusedSuggestionIndex(-1)
+                          setIsAddingCollection(false)
                         }
-                      }}
-                      onBlur={() => {
-                        setIsAddingCollection(false)
-                        setNewCollectionName("")
-                      }}
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck="false"
-                      className="text-[13px] text-foreground bg-transparent border-none outline-none p-0 m-0 w-full placeholder:text-muted-foreground/40"
-                      placeholder="Name..."
-                    />
-                  ) : null}
+
+                        return (
+                          <>
+                            <input
+                              ref={addCollectionRef}
+                              value={newCollectionName}
+                              onChange={(e) => {
+                                setNewCollectionName(e.target.value)
+                                setFocusedSuggestionIndex(-1)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowDown" && suggestions.length > 0) {
+                                  e.preventDefault()
+                                  setFocusedSuggestionIndex((prev) =>
+                                    prev < suggestions.length - 1 ? prev + 1 : prev
+                                  )
+                                  return
+                                }
+                                if (e.key === "ArrowUp" && suggestions.length > 0) {
+                                  e.preventDefault()
+                                  setFocusedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : prev))
+                                  return
+                                }
+                                if (
+                                  (e.key === "Enter" || e.key === "Tab") &&
+                                  focusedSuggestionIndex >= 0 &&
+                                  suggestions[focusedSuggestionIndex]
+                                ) {
+                                  e.preventDefault()
+                                  selectSuggestion(suggestions[focusedSuggestionIndex])
+                                  return
+                                }
+                                if (e.key === "Enter" && query) {
+                                  e.preventDefault()
+                                  if (VALID_COLLECTIONS.includes(query)) {
+                                    selectSuggestion(query)
+                                  } else {
+                                    setNewCollectionName("")
+                                    setInvalidCollection(true)
+                                    if (invalidTimerRef.current)
+                                      clearTimeout(invalidTimerRef.current)
+                                    invalidTimerRef.current = setTimeout(
+                                      () => setInvalidCollection(false),
+                                      1000
+                                    )
+                                  }
+                                  return
+                                }
+                                if (e.key === "Escape") {
+                                  setIsAddingCollection(false)
+                                  setNewCollectionName("")
+                                  setFocusedSuggestionIndex(-1)
+                                  setInvalidCollection(false)
+                                }
+                              }}
+                              onBlur={() => {
+                                setIsAddingCollection(false)
+                                setNewCollectionName("")
+                                setFocusedSuggestionIndex(-1)
+                              }}
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck="false"
+                              className="text-[13px] text-foreground bg-transparent border-none outline-none p-0 m-0 w-full placeholder:text-muted-foreground/40"
+                              placeholder="Name..."
+                            />
+                            {suggestions.length > 0 && (
+                              <div className="flex flex-col -translate-x-[1.5px]">
+                                {suggestions.map((name, i) => (
+                                  <button
+                                    key={name}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      selectSuggestion(name)
+                                    }}
+                                    className={`flex items-center gap-1.5 text-[13px] text-muted-foreground/70 text-left border-none p-0 pl-1 pr-1.5 py-0.5 rounded-sm cursor-pointer capitalize w-fit ${
+                                      i === focusedSuggestionIndex ? "bg-muted" : ""
+                                    }`}
+                                  >
+                                    <CornerDownRight className="size-3 shrink-0 text-muted-foreground/40" />
+                                    <span>
+                                      <span className="text-foreground/80">
+                                        {name.slice(0, query.length)}
+                                      </span>
+                                      <span>{name.slice(query.length)}</span>
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()
+                    : null}
                   {invalidCollection && (
                     <span className="text-[12px] text-red-400/90 motion-opacity-out-0 motion-delay-700 motion-duration-150">
                       Invalid collection
@@ -408,9 +489,9 @@ export function CollectionSidebar({
                         e.stopPropagation()
                         setIsAddingCollection(true)
                       }}
-                      className="text-[13px] text-muted-foreground/40 cursor-text italic text-left bg-transparent border-none p-0"
+                      className="text-[13px] text-gray-300 cursor-text text-left bg-transparent border-none p-0 flex items-center gap-2"
                     >
-                      Add another...
+                      Add Another
                     </button>
                   )}
                 </div>
