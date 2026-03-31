@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useRef } from "react"
+
 import { useRouter } from "next/navigation"
 
 import {
@@ -67,6 +68,7 @@ type State = {
 type Action =
   | { type: "SELECT"; id: string | null }
   | { type: "ZOOM"; id: string | null }
+  | { type: "SYNC_ITEMS"; items: ImageItem[] }
   | { type: "START_UPLOAD"; uploadingState: UploadingState; tempId: string }
   | { type: "UPLOAD_SUCCESS"; item: ImageItem }
   | { type: "UPLOAD_FAIL" }
@@ -90,6 +92,19 @@ function reducer(state: State, action: Action): State {
       return { ...state, selectedId: action.id }
     case "ZOOM":
       return { ...state, zoomedId: action.id }
+    case "SYNC_ITEMS": {
+      const pendingDeletionIds = new Set(state.pendingDeletions.map((item) => item.id))
+      const syncedItems = action.items.filter((item) => !pendingDeletionIds.has(item.id))
+      const hasSelectedItem = syncedItems.some((item) => item.id === state.selectedId)
+      const hasZoomedItem = syncedItems.some((item) => item.id === state.zoomedId)
+
+      return {
+        ...state,
+        items: syncedItems,
+        selectedId: hasSelectedItem ? state.selectedId : null,
+        zoomedId: hasZoomedItem ? state.zoomedId : null,
+      }
+    }
     case "START_UPLOAD":
       return {
         ...state,
@@ -207,7 +222,9 @@ function reducer(state: State, action: Action): State {
       const isUncategorized = action.currentCollection === "uncategorized"
       return {
         ...state,
-        items: isUncategorized ? updatedItems.filter((item) => item.id !== action.id) : updatedItems,
+        items: isUncategorized
+          ? updatedItems.filter((item) => item.id !== action.id)
+          : updatedItems,
         selectedId: isUncategorized ? null : state.selectedId,
       }
     }
@@ -244,6 +261,10 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const router = useRouter()
   const deleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
+
+  useEffect(() => {
+    dispatch({ type: "SYNC_ITEMS", items: initialItems })
+  }, [initialItems])
 
   const uploadImageFile = useCallback(
     async (file: File) => {

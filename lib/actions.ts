@@ -18,6 +18,11 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 const MAX_OG_IMAGE_BYTES = 15 * 1024 * 1024
 
+function revalidateCollectionNavigation() {
+  revalidatePath("/")
+  revalidatePath("/", "layout")
+}
+
 function isPrivateIPv4(hostname: string) {
   const parts = hostname.split(".").map(Number)
   if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
@@ -201,7 +206,9 @@ async function uploadRemoteVideoToR2(videoUrl: string, sourceHostname: string) {
 
   const ext = getExtensionFromVideoContentType(contentTypeHeader)
   const filename = `video-${sourceHostname}.${ext}`
-  console.log(`[VIDEO] Uploading to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`)
+  console.log(
+    `[VIDEO] Uploading to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`
+  )
   const result = await uploadBufferToR2(
     new Uint8Array(arrayBuffer),
     filename,
@@ -455,7 +462,9 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
     console.log(`[OG] Resolved image URL: ${resolvedImageUrl.toString()}`)
     const imageDownloadStart = performance.now()
     uploadedOgImage = await uploadRemoteImageToR2(resolvedImageUrl.toString(), parsedUrl.hostname)
-    console.log(`[OG] Image download+upload completed in ${(performance.now() - imageDownloadStart).toFixed(0)}ms`)
+    console.log(
+      `[OG] Image download+upload completed in ${(performance.now() - imageDownloadStart).toFixed(0)}ms`
+    )
   } catch (primaryImageError) {
     const message =
       primaryImageError instanceof Error ? primaryImageError.message : String(primaryImageError)
@@ -465,7 +474,9 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
       const fallbackStart = performance.now()
       console.log(`[OG] Trying fallback metadata endpoint...`)
       uploadedOgImage = await uploadFallbackOgImageToR2(parsedUrl)
-      console.log(`[OG] Fallback image completed in ${(performance.now() - fallbackStart).toFixed(0)}ms`)
+      console.log(
+        `[OG] Fallback image completed in ${(performance.now() - fallbackStart).toFixed(0)}ms`
+      )
     } catch (fallbackError) {
       const fallbackMessage =
         fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
@@ -504,10 +515,14 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
       comment: description,
     })
     .returning()
-  console.log(`[DB INSERT] Added URL ${inserted.id} to collection: ${collection} (${(performance.now() - dbStart).toFixed(0)}ms)`)
+  console.log(
+    `[DB INSERT] Added URL ${inserted.id} to collection: ${collection} (${(performance.now() - dbStart).toFixed(0)}ms)`
+  )
 
   updateTag(`collection:${collection}`)
-  console.log(`[TOTAL] addUrlToCollection completed in ${(performance.now() - totalStart).toFixed(0)}ms`)
+  console.log(
+    `[TOTAL] addUrlToCollection completed in ${(performance.now() - totalStart).toFixed(0)}ms`
+  )
 
   return {
     id: inserted.id.toString(),
@@ -622,7 +637,11 @@ export async function deleteItem(itemId: string, collection: string) {
   return { id: deleted.id.toString() }
 }
 
-export async function addItemToCollection(itemId: string, collection: string, currentCollection?: string) {
+export async function addItemToCollection(
+  itemId: string,
+  collection: string,
+  currentCollection?: string
+) {
   const [updated] = await db
     .update(postsTable)
     .set({
@@ -653,11 +672,16 @@ export async function addItemToCollection(itemId: string, collection: string, cu
   updateTag("collection:uncategorized")
   revalidatePath("/collections/uncategorized")
   updateTag("all-collection-slugs")
+  revalidateCollectionNavigation()
 
   return { id: updated.id.toString(), collections: updated.collections }
 }
 
-export async function removeItemFromCollection(itemId: string, collection: string, currentCollection?: string) {
+export async function removeItemFromCollection(
+  itemId: string,
+  collection: string,
+  currentCollection?: string
+) {
   const [updated] = await db
     .update(postsTable)
     .set({
@@ -687,6 +711,7 @@ export async function removeItemFromCollection(itemId: string, collection: strin
   }
   updateTag("collection:uncategorized")
   revalidatePath("/collections/uncategorized")
+  revalidateCollectionNavigation()
 
   return { id: updated.id.toString(), collections: updated.collections }
 }
