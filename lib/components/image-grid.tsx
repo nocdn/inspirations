@@ -294,12 +294,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   transition={
                     prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }
                   }
-                  style={{
-                    fontFamily: isMobile
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
-                      : "SF Mono",
-                  }}
-                  className="absolute top-full left-0 mt-2 text-white text-[10px] md:text-[5px] uppercase tracking-wide z-60 pointer-events-none origin-top-left text-left md:top-0 md:left-full md:mt-0.5 md:ml-2"
+                  className="absolute top-full left-0 mt-2 text-white text-[10px] md:text-[5px] uppercase tracking-wide z-60 pointer-events-none origin-top-left text-left md:top-0 md:left-full md:mt-0.5 md:ml-2 font-ioskeley-mono"
                 >
                   <div className="flex flex-row gap-7 items-start md:flex-col md:gap-2 md:w-48">
                     <div className="shrink-0">

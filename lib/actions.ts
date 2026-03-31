@@ -407,11 +407,14 @@ export async function addTweetToCollection(
 }
 
 export async function addUrlToCollection(collection: string, inputUrl: string) {
+  const totalStart = performance.now()
   const parsedUrl = normalizeHttpUrl(inputUrl)
   console.log(`[OG] Starting OG extraction for: ${parsedUrl.toString()}`)
 
   let metadataResult: Awaited<ReturnType<typeof ogs>>["result"] | undefined
   try {
+    const ogsStart = performance.now()
+    console.log(`[OG] Fetching metadata via ogs...`)
     const response = await ogs({
       url: parsedUrl.toString(),
       timeout: 10,
@@ -419,6 +422,7 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
         headers: BROWSER_HEADERS,
       },
     })
+    console.log(`[OG] ogs() completed in ${(performance.now() - ogsStart).toFixed(0)}ms`)
 
     if (response.error) {
       console.error(
@@ -449,14 +453,19 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
 
     const resolvedImageUrl = normalizeHttpUrlFromBase(image, parsedUrl)
     console.log(`[OG] Resolved image URL: ${resolvedImageUrl.toString()}`)
+    const imageDownloadStart = performance.now()
     uploadedOgImage = await uploadRemoteImageToR2(resolvedImageUrl.toString(), parsedUrl.hostname)
+    console.log(`[OG] Image download+upload completed in ${(performance.now() - imageDownloadStart).toFixed(0)}ms`)
   } catch (primaryImageError) {
     const message =
       primaryImageError instanceof Error ? primaryImageError.message : String(primaryImageError)
     console.error(`[OG] Primary image extraction failed for ${parsedUrl.toString()}: ${message}`)
 
     try {
+      const fallbackStart = performance.now()
+      console.log(`[OG] Trying fallback metadata endpoint...`)
       uploadedOgImage = await uploadFallbackOgImageToR2(parsedUrl)
+      console.log(`[OG] Fallback image completed in ${(performance.now() - fallbackStart).toFixed(0)}ms`)
     } catch (fallbackError) {
       const fallbackMessage =
         fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
@@ -484,6 +493,7 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
     `[OG] Extraction complete for ${parsedUrl.hostname} — title: "${title}", image: ${uploadedOgImage.publicUrl}`
   )
 
+  const dbStart = performance.now()
   const [inserted] = await db
     .insert(postsTable)
     .values({
@@ -494,11 +504,10 @@ export async function addUrlToCollection(collection: string, inputUrl: string) {
       comment: description,
     })
     .returning()
-
-  console.log(`[DB INSERT] Added URL ${inserted.id} to collection: ${collection}`)
+  console.log(`[DB INSERT] Added URL ${inserted.id} to collection: ${collection} (${(performance.now() - dbStart).toFixed(0)}ms)`)
 
   updateTag(`collection:${collection}`)
-  console.log(`[CACHE INVALIDATE] Updated cache for collection: ${collection}`)
+  console.log(`[TOTAL] addUrlToCollection completed in ${(performance.now() - totalStart).toFixed(0)}ms`)
 
   return {
     id: inserted.id.toString(),
@@ -635,6 +644,12 @@ export async function addItemToCollection(itemId: string, collection: string, cu
     updateTag(`collection:${currentCollection}`)
     revalidatePath(`/collections/${currentCollection}`)
   }
+  for (const existing of updated.collections) {
+    if (existing !== collection && existing !== currentCollection) {
+      updateTag(`collection:${existing}`)
+      revalidatePath(`/collections/${existing}`)
+    }
+  }
   updateTag("collection:uncategorized")
   revalidatePath("/collections/uncategorized")
   updateTag("all-collection-slugs")
@@ -663,6 +678,12 @@ export async function removeItemFromCollection(itemId: string, collection: strin
   if (currentCollection && currentCollection !== collection) {
     updateTag(`collection:${currentCollection}`)
     revalidatePath(`/collections/${currentCollection}`)
+  }
+  for (const remaining of updated.collections) {
+    if (remaining !== collection && remaining !== currentCollection) {
+      updateTag(`collection:${remaining}`)
+      revalidatePath(`/collections/${remaining}`)
+    }
   }
   updateTag("collection:uncategorized")
   revalidatePath("/collections/uncategorized")
