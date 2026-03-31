@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import Image from "next/image"
 
-import { ExternalLink } from "lucide-react"
+import { ArrowBigDownDash, ExternalLink, Loader } from "lucide-react"
 import { AnimatePresence, LazyMotion, domAnimation, m, useReducedMotion } from "motion/react"
 
 import type { ImageItem } from "@/lib/types"
@@ -25,6 +25,7 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
   const [topIdState, setTopIdState] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [imageDimensions, setImageDimensions] = useState<
     Record<string, { width: number; height: number }>
   >({})
@@ -171,6 +172,39 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
     },
     []
   )
+
+  const handleDownload = useCallback(async (item: ImageItem) => {
+    const publicUrl = item.videoUrl ?? item.imageUrl
+
+    setDownloadingId(item.id)
+
+    try {
+      const response = await fetch(`/api/r2/download?url=${encodeURIComponent(publicUrl)}`)
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const contentDisposition = response.headers.get("content-disposition")
+      const filename =
+        contentDisposition?.match(/filename="([^"]+)"/i)?.[1] ??
+        publicUrl.split("/").pop()?.replace(/^\d+-/, "") ??
+        "download"
+
+      const anchor = document.createElement("a")
+      anchor.href = objectUrl
+      anchor.download = filename
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      console.error("[R2 DOWNLOAD] Failed to download item:", error)
+    } finally {
+      setDownloadingId(null)
+    }
+  }, [])
 
   const springTransition = prefersReducedMotion
     ? { duration: 0 }
@@ -325,6 +359,33 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                     <div className="shrink-0">
                       <div className="text-white/50 mb-px font-medium">Date Created</div>
                       <div>{item.dateCreated}</div>
+                    </div>
+                    <div className="shrink-0">
+                      <div className="text-white/50 mb-px font-medium">Stored in R2</div>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="pointer-events-auto inline-flex cursor-pointer items-center gap-0.75 text-white transition-colors hover:text-white/80"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleDownload(item)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter" && e.key !== " ") return
+                          e.preventDefault()
+                          e.stopPropagation()
+                          void handleDownload(item)
+                        }}
+                        aria-disabled={downloadingId === item.id}
+                      >
+                        Download{" "}
+                        {downloadingId === item.id ? (
+                          <Loader className="size-[1em] -translate-y-[0.25px] animate-spin" />
+                        ) : (
+                          <ArrowBigDownDash className="size-[1em] -translate-y-[0.25px]" />
+                        )}
+                      </div>
                     </div>
                   </div>
                 </m.div>

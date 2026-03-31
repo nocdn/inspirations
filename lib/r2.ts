@@ -1,5 +1,6 @@
 type R2Sdk = {
   DeleteObjectCommand: typeof import("@aws-sdk/client-s3").DeleteObjectCommand
+  GetObjectCommand: typeof import("@aws-sdk/client-s3").GetObjectCommand
   PutObjectCommand: typeof import("@aws-sdk/client-s3").PutObjectCommand
   S3Client: typeof import("@aws-sdk/client-s3").S3Client
   getSignedUrl: typeof import("@aws-sdk/s3-request-presigner").getSignedUrl
@@ -15,6 +16,7 @@ async function loadR2Sdk(): Promise<R2Sdk> {
       import("@aws-sdk/s3-request-presigner"),
     ]).then(([clientS3, requestPresigner]) => ({
       DeleteObjectCommand: clientS3.DeleteObjectCommand,
+      GetObjectCommand: clientS3.GetObjectCommand,
       PutObjectCommand: clientS3.PutObjectCommand,
       S3Client: clientS3.S3Client,
       getSignedUrl: requestPresigner.getSignedUrl,
@@ -26,17 +28,18 @@ async function loadR2Sdk(): Promise<R2Sdk> {
 
 async function getR2Client() {
   if (!r2ClientPromise) {
-    r2ClientPromise = loadR2Sdk().then(({ S3Client }) =>
-      new S3Client({
-        region: "auto",
-        endpoint: process.env.R2_ENDPOINT!,
-        credentials: {
-          accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-        },
-        requestChecksumCalculation: "WHEN_REQUIRED",
-        responseChecksumValidation: "WHEN_REQUIRED",
-      })
+    r2ClientPromise = loadR2Sdk().then(
+      ({ S3Client }) =>
+        new S3Client({
+          region: "auto",
+          endpoint: process.env.R2_ENDPOINT!,
+          credentials: {
+            accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+          },
+          requestChecksumCalculation: "WHEN_REQUIRED",
+          responseChecksumValidation: "WHEN_REQUIRED",
+        })
     )
   }
 
@@ -65,6 +68,17 @@ export function getR2KeyFromPublicUrl(publicUrl: string): string | null {
   }
 
   return key
+}
+
+export async function getObjectFromR2(key: string) {
+  const [{ GetObjectCommand }, R2] = await Promise.all([loadR2Sdk(), getR2Client()])
+
+  return R2.send(
+    new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    })
+  )
 }
 
 export async function uploadBufferToR2(

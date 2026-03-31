@@ -34,8 +34,8 @@ const ioskeleyMono = localFont({
 })
 
 export const metadata: Metadata = {
-  title: isDevelopment ? "inspirations (dev)" : "inspirations",
-  description: isDevelopment ? "inspirations (dev)" : "inspirations",
+  title: isDevelopment ? "Inspirations (dev)" : "Inspirations",
+  description: isDevelopment ? "Inspirations (dev)" : "Inspirations",
 }
 
 export default function RootLayout({
@@ -45,7 +45,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${ppSupplyMono.variable} ${ppNeueMontreal.variable} ${ioskeleyMono.variable} bg-background`}>
+      <body
+        className={`${inter.variable} ${ppSupplyMono.variable} ${ppNeueMontreal.variable} ${ioskeleyMono.variable} bg-background`}
+      >
         {children}
       </body>
     </html>

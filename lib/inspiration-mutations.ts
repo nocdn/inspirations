@@ -164,12 +164,14 @@ function getExtensionFromVideoContentType(contentType: string | null) {
 }
 
 async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
+  const t0 = performance.now()
   console.log(`[OG] Downloading image: ${imageUrl}`)
   const response = await fetch(imageUrl, {
     headers: {
       "user-agent": USER_AGENT,
     },
   })
+  console.log(`[OG] Image fetch response in ${(performance.now() - t0).toFixed(0)}ms`)
 
   if (!response.ok) {
     console.error(`[OG] Image download failed - HTTP ${response.status} from ${imageUrl}`)
@@ -193,8 +195,9 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
     throw new Error("OG image URL did not return an image")
   }
 
+  const t1 = performance.now()
   const arrayBuffer = await response.arrayBuffer()
-  console.log(`[OG] Downloaded ${arrayBuffer.byteLength} bytes`)
+  console.log(`[OG] Downloaded ${arrayBuffer.byteLength} bytes (body read in ${(performance.now() - t1).toFixed(0)}ms)`)
   if (arrayBuffer.byteLength > MAX_OG_IMAGE_BYTES) {
     console.error(`[OG] Image body too large: ${arrayBuffer.byteLength} bytes`)
     throw new Error("OG image is too large to cache")
@@ -202,13 +205,14 @@ async function uploadRemoteImageToR2(imageUrl: string, sourceHostname: string) {
 
   const ext = getExtensionFromContentType(contentTypeHeader)
   const filename = `og-${sourceHostname}.${ext}`
+  const t2 = performance.now()
   console.log(`[OG] Uploading to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`)
   const result = await uploadBufferToR2(
     new Uint8Array(arrayBuffer),
     filename,
     normalizedContentType
   )
-  console.log(`[OG] Upload complete - public URL: ${result.publicUrl}`)
+  console.log(`[OG] R2 upload completed in ${(performance.now() - t2).toFixed(0)}ms - public URL: ${result.publicUrl}`)
   return result
 }
 
@@ -270,6 +274,7 @@ async function uploadFallbackOgImageToR2(pageUrl: URL) {
     `[OG] Falling back to metadata service for image extraction: ${fallbackEndpoint.toString()}`
   )
 
+  const t0 = performance.now()
   const response = await fetch(fallbackEndpoint.toString(), {
     method: "POST",
     headers: {
@@ -281,6 +286,7 @@ async function uploadFallbackOgImageToR2(pageUrl: URL) {
       url: pageUrl.toString(),
     }),
   })
+  console.log(`[OG] Fallback endpoint responded in ${(performance.now() - t0).toFixed(0)}ms (status: ${response.status})`)
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "")
@@ -300,7 +306,9 @@ async function uploadFallbackOgImageToR2(pageUrl: URL) {
     throw new Error("Fallback metadata endpoint did not return an image")
   }
 
+  const t1 = performance.now()
   const arrayBuffer = await response.arrayBuffer()
+  console.log(`[OG] Fallback image body read in ${(performance.now() - t1).toFixed(0)}ms (${arrayBuffer.byteLength} bytes)`)
   if (!arrayBuffer.byteLength) {
     throw new Error("Fallback metadata endpoint returned an empty image")
   }
@@ -310,10 +318,13 @@ async function uploadFallbackOgImageToR2(pageUrl: URL) {
 
   const ext = getExtensionFromContentType(contentTypeHeader)
   const filename = `og-${pageUrl.hostname}-fallback.${ext}`
+  const t2 = performance.now()
   console.log(
     `[OG] Uploading fallback image to R2 as "${filename}" (type: ${normalizedContentType ?? "unknown"})`
   )
-  return uploadBufferToR2(new Uint8Array(arrayBuffer), filename, normalizedContentType)
+  const result = await uploadBufferToR2(new Uint8Array(arrayBuffer), filename, normalizedContentType)
+  console.log(`[OG] Fallback R2 upload completed in ${(performance.now() - t2).toFixed(0)}ms`)
+  return result
 }
 
 function getFirstImageUrl(result: {
