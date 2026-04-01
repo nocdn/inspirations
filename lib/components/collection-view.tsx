@@ -261,7 +261,6 @@ export function CollectionView({ collectionName, items: initialItems }: Collecti
   const router = useRouter()
   const deleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
-
   useEffect(() => {
     dispatch({ type: "SYNC_ITEMS", items: initialItems })
   }, [initialItems])

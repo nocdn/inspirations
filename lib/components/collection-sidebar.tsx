@@ -110,6 +110,29 @@ export function CollectionSidebar({
   const prefersReducedMotion = useReducedMotion()
   const prevSelectedIdRef = useRef<string | undefined>(selectedItem?.id)
   const autoFocusHandledIdRef = useRef<string | null>(null)
+  const hasEverSelectedRef = useRef(false)
+  const mountedRef = useRef(false)
+
+  // Reset hasEverSelected when re-entering after a navigation.
+  // Refs persist when React reuses the fiber (same key/slug), but
+  // the cleanup effect sets mountedRef to false on unmount, so we
+  // can detect a "fresh navigation" in the render phase.
+  if (!mountedRef.current) {
+    hasEverSelectedRef.current = false
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedItem) {
+      hasEverSelectedRef.current = true
+    }
+  }, [selectedItem])
 
   useEffect(() => {
     return () => {
@@ -229,6 +252,7 @@ export function CollectionSidebar({
   const isUploading = !!uploadingState
   const showUploadingPane = isUploading && !selectedItem
   const activeVariants = prefersReducedMotion ? reducedMotionVariants : variants
+  const shouldAnimate = hasEverSelectedRef.current
 
   return (
     <LazyMotion features={domAnimation}>
@@ -500,10 +524,11 @@ export function CollectionSidebar({
             <m.div
               key="collection-info"
               custom={1}
-              variants={activeVariants}
-              initial="enter"
+              variants={shouldAnimate ? activeVariants : reducedMotionVariants}
+              initial={shouldAnimate ? "enter" : false}
               animate="center"
               exit="exit"
+              transition={shouldAnimate ? undefined : { duration: 0 }}
               className="flex flex-col gap-4"
             >
               <div className="flex flex-col gap-2">
