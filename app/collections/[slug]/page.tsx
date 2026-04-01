@@ -28,7 +28,7 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
   return {
-    title: `inspirations - ${slug}`,
+    title: `Inspirations - ${slug.charAt(0).toUpperCase() + slug.slice(1)}`,
     description: `Design inspiration collection: ${slug}`,
   }
 }

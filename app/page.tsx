@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import Table from "./Table"
 
 export const metadata: Metadata = {
-  title: "inspirations",
+  title: "Inspirations",
   description: "A collection of design inspirations from across the internet.",
 }
 
