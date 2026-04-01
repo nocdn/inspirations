@@ -1,3 +1,5 @@
+import ReactDOM from "react-dom"
+
 import AnimationsSymbol from "@/app/symbols/animations"
 import ComponentSymbol from "@/app/symbols/component"
 import Typography from "@/app/symbols/typography"
@@ -46,19 +48,24 @@ const staticRows = [
 // - Logos
 
 export default async function Table() {
-  const counts = await Promise.all(
+  const allItems = await Promise.all(
     staticRows.map(async (row) => {
-      const items =
-        row.collection === "uncategorized"
-          ? await getUncategorizedItems()
-          : await getCollectionItems(row.collection)
-      return items.length
+      return row.collection === "uncategorized"
+        ? await getUncategorizedItems()
+        : await getCollectionItems(row.collection)
     })
   )
 
+  // Prefetch all collection images so they appear instantly on navigation
+  for (const items of allItems) {
+    for (const item of items) {
+      ReactDOM.preload(item.imageUrl, { as: "image", fetchPriority: "low" })
+    }
+  }
+
   const rows: Row[] = staticRows.map((row, i) => ({
     ...row,
-    count: counts[i],
+    count: allItems[i].length,
   }))
   return (
     <div className="w-full max-w-[567px]">
