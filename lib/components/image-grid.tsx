@@ -260,14 +260,13 @@ export function ImageGrid({ items, selectedId, zoomedId, onSelect, onZoom }: Ima
                   setTopIdState(null)
                 }
               }}
-              className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none motion-opacity-in-0 ${
+              className={`flex flex-col gap-2 text-left transition-opacity cursor-pointer focus:outline-none ${
                 zoomedId && !isZoomed
                   ? "opacity-50"
                   : isSelected
                     ? ""
                     : "group-[.has-selection]/grid:opacity-40"
               } ${isTop ? "relative z-100" : "relative z-0"}`}
-              style={{ animationDelay: `${index * 0.02}s` }}
               animate={{
                 scale: isZoomed ? (isMobile ? 1.05 : 2.5) : 1,
                 x: isZoomed ? translation.x : 0,
