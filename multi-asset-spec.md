@@ -105,8 +105,8 @@ The interaction model must behave differently depending on whether an inspiratio
 ### Multi-asset inspiration
 
 1. First click selects the inspiration.
-2. Second click expands that inspiration into a layout showing all assets at once.
-3. Clicking one asset inside that expanded layout zooms that single asset into the centered detail view.
+2. Second click expands that inspiration into a layout showing all assets at once - This MUST USE THE SAME TECHNIQUES WITH ZOOMING AND LAYOUT ANIMATIONS AS IT DOES WITH A SINGLE ASSET RIGHT NOW, JUST CALCULATE WHERE THEY SHOULD ZOOM TO BASED ON THE TARGET EXPANDED LAYOUT POSITION (IN A GRID FOR EXAMPLE) - IT IS EXTREMELY IMPORTANT TO PRESERVE THIS SMOOTH ZOOMING ANIMATION.
+3. Clicking one asset inside that expanded layout zooms that single asset into the centered detail view (WITH THE SAME ANIMATION AS THE CURRENT ZOOMING HAPPENS, WITH A ZOOM TO THE MIDDLE - but im sure you understand)
 4. Escape steps back one layer at a time:
    - if a single asset is zoomed: Escape returns to the expanded multi-asset layout
    - if the multi-asset layout is expanded: Escape returns to the selected inspiration state
@@ -147,12 +147,13 @@ Desired visual idea:
 
 ```text
 ┌─────────────────────┬─┬─┬─┐
-│                     │ │ │ │
+│ 1                   │2│3│4│
 │                     │ │ │ │
 │                     │ │ │ │
 │                     │ │ │ │
 └─────────────────────┴─┴─┴─┘
 ```
+(the numbers are just there to show you which shape belongs to which inspiration)
 
 ### Stacking rules
 
@@ -206,14 +207,7 @@ When a multi-asset inspiration is expanded:
 
 ### Animation requirement
 
-The expansion should feel like the assets “fly out” from the original stacked inspiration.
-
-Important expectation:
-
-- the assets should not simply appear in place with no relationship to the original inspiration
-- they should animate from the source inspiration preview into their expanded positions
-
-The user explicitly wants this to preserve the spirit of the current zoom interaction.
+The user explicitly wants this to preserve the spirit of the current zoom interactions, for both the expanding into a multi-media grid, and the single media zoom.
 
 ### Desktop layout rules
 

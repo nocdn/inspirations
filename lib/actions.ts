@@ -9,11 +9,14 @@ import { db } from "@/lib/db"
 import {
   addTweetToCollections,
   addUrlToCollections,
+  appendAssetToInspiration as appendAssetShared,
   deleteObjectFromR2,
+  getInspirationAssets,
   getUploadUrl as getSharedUploadUrl,
   getR2KeyFromPublicUrl,
   saveImageToCollection as saveSharedImageToCollection,
 } from "@/lib/inspiration-mutations"
+import type { Asset } from "@/lib/types"
 
 function revalidateCollectionNavigation() {
   revalidatePath("/")
@@ -36,18 +39,18 @@ export async function saveImageToCollection(
 export async function addTweetToCollection(
   collection: string,
   tweetUrl: string,
-  imageUrl: string,
+  imageUrls: string[],
   authorName: string,
   comment: string,
-  remoteVideoUrl?: string
+  videoUrls: string[]
 ) {
   return addTweetToCollections({
     collections: [collection],
     tweetUrl,
-    imageUrl,
+    imageUrls,
     authorName,
     comment,
-    remoteVideoUrl,
+    videoUrls,
     mode: "server-action",
   })
 }
